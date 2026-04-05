@@ -147,9 +147,48 @@ function toLocalFamily(family, dependents) {
   };
 }
 
+function deriveUserNameFromEmail(email) {
+  const localPart = String(email || '').split('@')[0] || '';
+  return localPart.trim() || 'Usuario';
+}
+
+async function ensureRemoteProfile(userId) {
+  let profile = await fetchRemoteProfile(userId);
+  if (profile?.name && String(profile.name).trim()) {
+    return profile;
+  }
+
+  const { data: authData, error: authError } = await supabase.auth.getUser();
+  if (authError || !authData?.user?.id) {
+    throw authError || new Error('Nao foi possivel identificar o usuario autenticado.');
+  }
+
+  const authUser = authData.user;
+  const safeEmail = normalizeEmail(authUser.email || profile?.email || '');
+  const safeName = String(
+    profile?.name
+    || authUser.user_metadata?.name
+    || authUser.user_metadata?.full_name
+    || deriveUserNameFromEmail(safeEmail),
+  ).trim();
+
+  const { error: upsertError } = await supabase.from('profiles').upsert({
+    id: userId,
+    name: safeName || 'Usuario',
+    email: safeEmail,
+  });
+
+  if (upsertError) {
+    throw upsertError;
+  }
+
+  profile = await fetchRemoteProfile(userId);
+  return profile;
+}
+
 async function syncUserFromRemote(userId) {
   if (!isSupabaseEnabled()) return;
-  const profile = await fetchRemoteProfile(userId);
+  const profile = await ensureRemoteProfile(userId);
   if (!profile) return;
 
   const db = readDb();
@@ -404,19 +443,40 @@ export async function updateUserProfile({ name, photoUrl }) {
   ensureSupabaseConfigured();
 
   const current = getCurrentUser();
-  if (!current) throw new Error('Faca login para alterar o perfil.');
+  const currentId = current?.id;
 
-  const safeName = name !== undefined ? String(name || '').trim() : current.name;
-  const safePhotoUrl = photoUrl !== undefined ? String(photoUrl || '').trim() : current.photoUrl;
+  let userId = currentId;
+  if (!userId) {
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    if (authError || !authData?.user?.id) {
+      throw new Error('Faca login para alterar o perfil.');
+    }
+    userId = authData.user.id;
+  }
 
-  const { error } = await supabase
-    .from('profiles')
-    .update({ name: safeName, photo_url: safePhotoUrl || null })
-    .eq('id', current.id);
+  const safeName = name !== undefined ? String(name || '').trim() : current?.name;
+  const safePhotoUrl = photoUrl !== undefined ? String(photoUrl || '').trim() : current?.photoUrl;
+
+  if (!safeName) {
+    throw new Error('Informe o nome para salvar o perfil.');
+  }
+
+  const { data: authData, error: authError } = await supabase.auth.getUser();
+  if (authError || !authData?.user?.email) {
+    throw new Error('Nao foi possivel identificar seu email para salvar o perfil.');
+  }
+  const safeEmail = normalizeEmail(authData.user.email);
+
+  const { error } = await supabase.from('profiles').upsert({
+    id: userId,
+    name: safeName,
+    email: safeEmail,
+    photo_url: safePhotoUrl || null,
+  });
 
   if (error) throw new Error(error.message || 'Nao foi possivel atualizar o perfil.');
 
-  await syncUserFromRemote(current.id);
+  await syncUserFromRemote(userId);
   dispatchAuthChanged();
 }
 
