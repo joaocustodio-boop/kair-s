@@ -571,6 +571,8 @@ export async function joinFamilyByCode(code) {
     throw new Error('Faca login para entrar em uma familia.');
   }
 
+  await ensureRemoteProfile(current.id);
+
   const safeCode = String(code || '').trim().toUpperCase();
   if (!safeCode) throw new Error('Informe o codigo da familia.');
 
