@@ -15,6 +15,10 @@ function generateFamilyCode() {
   return Math.random().toString(36).slice(2, 8).toUpperCase();
 }
 
+function normalizeFamilyCodeInput(code) {
+  return String(code || '').trim().toUpperCase();
+}
+
 function readDb() {
   const raw = localStorage.getItem(AUTH_DB_KEY);
   if (!raw) {
@@ -573,7 +577,7 @@ export async function joinFamilyByCode(code) {
 
   await ensureRemoteProfile(current.id);
 
-  const safeCode = String(code || '').trim().toUpperCase();
+  const safeCode = normalizeFamilyCodeInput(code);
   if (!safeCode) throw new Error('Informe o codigo da familia.');
 
   const { error } = await supabase.rpc('join_family_by_code', {
@@ -587,6 +591,115 @@ export async function joinFamilyByCode(code) {
   await syncUserFromRemote(current.id);
   dispatchAuthChanged();
   return getCurrentFamily();
+}
+
+export async function findFamilyByCode(code) {
+  ensureSupabaseConfigured();
+
+  const current = getCurrentUser();
+  if (!current) {
+    throw new Error('Faca login para buscar uma familia.');
+  }
+
+  const safeCode = normalizeFamilyCodeInput(code);
+  if (!safeCode) throw new Error('Informe o codigo da familia.');
+
+  const { data, error } = await supabase.rpc('find_family_by_code', {
+    input_code: safeCode,
+  });
+
+  if (error) {
+    throw new Error(error.message || 'Nao foi possivel buscar a familia.');
+  }
+
+  return data || null;
+}
+
+export async function searchFamiliesByName(nameQuery) {
+  ensureSupabaseConfigured();
+
+  const current = getCurrentUser();
+  if (!current) {
+    throw new Error('Faca login para buscar familias.');
+  }
+
+  const safeQuery = String(nameQuery || '').trim();
+  if (!safeQuery) return [];
+
+  const { data, error } = await supabase.rpc('search_families_by_name', {
+    input_name: safeQuery,
+  });
+
+  if (error) {
+    throw new Error(error.message || 'Nao foi possivel buscar familias.');
+  }
+
+  return Array.isArray(data) ? data : [];
+}
+
+export async function requestFamilyJoinByCode(code) {
+  ensureSupabaseConfigured();
+
+  const current = getCurrentUser();
+  if (!current) {
+    throw new Error('Faca login para solicitar entrada em uma familia.');
+  }
+
+  const safeCode = normalizeFamilyCodeInput(code);
+  if (!safeCode) throw new Error('Informe o codigo da familia.');
+
+  await ensureRemoteProfile(current.id);
+
+  const { data, error } = await supabase.rpc('request_family_join_by_code', {
+    input_code: safeCode,
+  });
+
+  if (error) {
+    throw new Error(error.message || 'Nao foi possivel solicitar entrada na familia.');
+  }
+
+  return data || null;
+}
+
+export async function listPendingFamilyJoinRequests() {
+  ensureSupabaseConfigured();
+
+  const current = getCurrentUser();
+  if (!current) {
+    throw new Error('Faca login para ver solicitacoes.');
+  }
+
+  const { data, error } = await supabase.rpc('list_pending_family_join_requests');
+  if (error) {
+    throw new Error(error.message || 'Nao foi possivel carregar solicitacoes pendentes.');
+  }
+
+  return Array.isArray(data) ? data : [];
+}
+
+export async function reviewFamilyJoinRequest(requestId, decision) {
+  ensureSupabaseConfigured();
+
+  const current = getCurrentUser();
+  if (!current) {
+    throw new Error('Faca login para revisar solicitacoes.');
+  }
+
+  const safeRequestId = String(requestId || '').trim();
+  const safeDecision = String(decision || '').trim().toLowerCase();
+  if (!safeRequestId) throw new Error('Solicitacao invalida.');
+  if (!['approved', 'rejected'].includes(safeDecision)) throw new Error('Decisao invalida.');
+
+  const { data, error } = await supabase.rpc('review_family_join_request', {
+    request_id: safeRequestId,
+    decision: safeDecision,
+  });
+
+  if (error) {
+    throw new Error(error.message || 'Nao foi possivel revisar a solicitacao.');
+  }
+
+  return data || null;
 }
 
 export async function addDependentChild({ name, birthDate = '', photoUrl = '' }) {

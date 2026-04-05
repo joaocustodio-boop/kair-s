@@ -5,7 +5,9 @@ import {
   updateUserProfile,
   updateUserPassword,
   createFamily,
+  findFamilyByCode,
   joinFamilyByCode,
+  searchFamiliesByName,
   leaveFamilyAsync,
   addDependentChild,
   updateDependentChild,
@@ -29,7 +31,11 @@ function memberAvatar(member) {
 }
 
 export function render(state = {}) {
-  const { editingChildId = null } = state;
+  const {
+    editingChildId = null,
+    familyLookup = null,
+    familySearchResults = [],
+  } = state;
   const user = getCurrentUser();
   const family = getCurrentFamily();
   const members = getFamilyMembers();
@@ -153,11 +159,38 @@ export function render(state = {}) {
             </button>
           </div>
           <div class="form-row form-row-inline">
+            <input id="ajustes-family-search" class="form-input" type="text" placeholder="Pesquisar família por nome" />
+            <button id="ajustes-search-family" class="btn btn-secondary" type="button">
+              <i data-lucide="search"></i> Pesquisar
+            </button>
+          </div>
+          ${familySearchResults.length ? `
+            <div class="form-row" style="display:block;margin-top:6px">
+              ${familySearchResults.map((item) => `
+                <div class="ajustes-member-item" style="margin-bottom:6px">
+                  <div style="flex:1;min-width:0">
+                    <span>${escapeHtml(item.name || 'Familia')}</span>
+                    <small style="display:block;color:var(--text-muted)">Código: ${escapeHtml(item.code || '')}</small>
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+          ` : ''}
+          <div class="form-row form-row-inline">
             <input id="ajustes-family-code" class="form-input" type="text" placeholder="Código da família" />
+            <button id="ajustes-find-family" class="btn btn-secondary" type="button">
+              <i data-lucide="search"></i> Buscar
+            </button>
             <button id="ajustes-join-family" class="btn btn-secondary" type="button">
               <i data-lucide="user-plus"></i> Entrar com código
             </button>
           </div>
+          ${familyLookup ? `
+            <p class="page-subtitle" style="margin-top:8px">
+              Família encontrada: <strong>${escapeHtml(familyLookup.name || 'Familia')}</strong>
+              (${escapeHtml(familyLookup.code || '')})
+            </p>
+          ` : ''}
         `}
       </div>
     </div>
@@ -165,7 +198,7 @@ export function render(state = {}) {
 }
 
 export function init(container, stateArg) {
-  const state = stateArg || { editingChildId: null };
+  const state = stateArg || { editingChildId: null, familyLookup: null, familySearchResults: [] };
 
   function rerender() {
     container.innerHTML = render(state);
@@ -270,6 +303,36 @@ export function init(container, stateArg) {
     }
   });
 
+  container.querySelector('#ajustes-search-family')?.addEventListener('click', async () => {
+    const query = String(container.querySelector('#ajustes-family-search')?.value || '').trim();
+    try {
+      const families = await searchFamiliesByName(query);
+      state.familySearchResults = families;
+      if (!families.length) {
+        alert('Nenhuma família encontrada com esse nome.');
+      }
+      rerender();
+    } catch (err) {
+      alert(err?.message || 'Não foi possível pesquisar famílias.');
+    }
+  });
+
+  container.querySelector('#ajustes-find-family')?.addEventListener('click', async () => {
+    const code = String(container.querySelector('#ajustes-family-code')?.value || '').trim();
+    try {
+      const familyFound = await findFamilyByCode(code);
+      if (!familyFound) {
+        state.familyLookup = null;
+        alert('Código de família não encontrado.');
+      } else {
+        state.familyLookup = familyFound;
+      }
+      rerender();
+    } catch (err) {
+      alert(err?.message || 'Não foi possível buscar a família.');
+    }
+  });
+
   container.querySelector('#ajustes-leave-family')?.addEventListener('click', async () => {
     if (!confirm('Você tem certeza que deseja sair da família?')) {
       return;
@@ -354,4 +417,5 @@ export function init(container, stateArg) {
       }
     });
   });
+
 }

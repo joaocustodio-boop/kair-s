@@ -1,11 +1,12 @@
 import {
   completePasswordRecovery,
+  findFamilyByCode,
+  joinFamilyByCode,
   loginUser,
   preparePasswordRecoverySession,
   requestPasswordReset,
   registerUser,
   createFamily,
-  joinFamilyByCode,
   leaveFamilyAsync,
   addDependentChild,
   getCurrentUser,
@@ -278,7 +279,14 @@ export function init(container) {
     container.querySelector('#auth-join-family')?.addEventListener('click', async () => {
       const code = container.querySelector('#auth-family-code')?.value || '';
       try {
+        const foundFamily = await findFamilyByCode(code);
+        if (!foundFamily) {
+          error = 'Codigo de familia nao encontrado.';
+          rerender();
+          return;
+        }
         await joinFamilyByCode(code);
+        error = '';
         rerender();
       } catch (err) {
         error = err?.message || 'Não foi possível entrar na família.';

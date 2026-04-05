@@ -1,6 +1,6 @@
 import { store } from '../store.js';
 import { refreshIcons } from '../icons.js';
-import { getCurrentUser, getCurrentFamily, getFamilyMembers, createFamily, joinFamilyByCode } from '../auth.js';
+import { getCurrentUser, getCurrentFamily, getFamilyMembers, createFamily, findFamilyByCode, joinFamilyByCode } from '../auth.js';
 
 function escapeHtml(str) {
   return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -140,6 +140,11 @@ export function init(container, filter = 'all') {
   container.querySelector('#join-family-btn')?.addEventListener('click', async () => {
     const code = String(container.querySelector('#family-code-input')?.value || '').trim();
     try {
+      const foundFamily = await findFamilyByCode(code);
+      if (!foundFamily) {
+        alert('Código de família não encontrado.');
+        return;
+      }
       await joinFamilyByCode(code);
       rerender();
     } catch (err) {
