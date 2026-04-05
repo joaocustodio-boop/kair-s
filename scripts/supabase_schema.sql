@@ -64,6 +64,8 @@ as $$
 declare
   safe_code text := upper(trim(coalesce(input_code, '')));
   target_family public.families;
+  auth_user_email text;
+  auth_user_name text;
 begin
   if auth.uid() is null then
     raise exception 'Usuario nao autenticado.';
@@ -76,20 +78,32 @@ begin
   select *
   into target_family
   from public.families
-  where code = safe_code
+  where upper(code) = safe_code
   limit 1;
 
   if target_family.id is null then
     raise exception 'Codigo de familia nao encontrado.';
   end if;
 
-  update public.profiles
-  set family_id = target_family.id
-  where id = auth.uid();
+  select
+    lower(email),
+    coalesce(nullif(raw_user_meta_data ->> 'name', ''), nullif(raw_user_meta_data ->> 'full_name', ''), split_part(email, '@', 1), 'Usuario')
+  into auth_user_email, auth_user_name
+  from auth.users
+  where id = auth.uid()
+  limit 1;
 
-  if not found then
-    raise exception 'Perfil do usuario nao encontrado.';
+  if auth_user_email is null then
+    raise exception 'Email do usuario nao encontrado.';
   end if;
+
+  insert into public.profiles (id, name, email, family_id)
+  values (auth.uid(), auth_user_name, auth_user_email, target_family.id)
+  on conflict (id)
+  do update set
+    family_id = excluded.family_id,
+    name = coalesce(nullif(public.profiles.name, ''), excluded.name),
+    email = coalesce(public.profiles.email, excluded.email);
 
   return target_family;
 end;
