@@ -3,6 +3,7 @@ import {
   registerUser,
   createFamily,
   joinFamilyByCode,
+  leaveFamilyAsync,
   addDependentChild,
   getCurrentUser,
   getCurrentFamily,
@@ -41,6 +42,11 @@ export function render(mode = 'login', error = '') {
                 <input id="auth-child-birth" class="form-input" type="date" style="max-width:180px" />
                 <button id="auth-add-child" class="btn btn-secondary" type="button">
                   <i data-lucide="baby"></i> Adicionar Filho
+                </button>
+              </div>
+              <div class="form-row form-row-inline" style="margin-top:1rem;padding-top:1rem;border-top:1px solid var(--border-color)">
+                <button id="auth-leave-family" class="btn btn-secondary" type="button" style="background-color:#ff6b6b;color:white;border:none">
+                  <i data-lucide="log-out"></i> Sair da Família
                 </button>
               </div>
             ` : `
@@ -184,6 +190,20 @@ export function init(container) {
         rerender();
       } catch (err) {
         error = err?.message || 'Não foi possível entrar na família.';
+        rerender();
+      }
+    });
+
+    container.querySelector('#auth-leave-family')?.addEventListener('click', async () => {
+      if (!confirm('Você tem certeza que deseja sair da família?')) {
+        return;
+      }
+      try {
+        await leaveFamilyAsync();
+        error = '';
+        rerender();
+      } catch (err) {
+        error = err?.message || 'Não foi possível sair da família.';
         rerender();
       }
     });
