@@ -507,6 +507,9 @@ export async function createFamily(name) {
     throw new Error('Faca login para criar uma familia.');
   }
 
+  const userId = await resolveAuthenticatedUserId(current.id);
+  await ensureRemoteProfile(userId);
+
   const safeName = String(name || '').trim();
   if (!safeName) {
     throw new Error('Informe o nome da familia.');
@@ -525,7 +528,7 @@ export async function createFamily(name) {
       .insert({
         name: safeName,
         code: familyCode,
-        owner_id: current.id,
+        owner_id: userId,
       })
       .select('id, name, code, owner_id, created_at')
       .single();
@@ -545,13 +548,13 @@ export async function createFamily(name) {
   const { error: updateError } = await supabase
     .from('profiles')
     .update({ family_id: insertedFamily.id })
-    .eq('id', current.id);
+    .eq('id', userId);
 
   if (updateError) {
     throw new Error(updateError.message || 'Falha ao vincular usuario na familia.');
   }
 
-  await syncUserFromRemote(current.id);
+  await syncUserFromRemote(userId);
   dispatchAuthChanged();
   return getCurrentFamily();
 }
