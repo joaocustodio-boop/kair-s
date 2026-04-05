@@ -15,6 +15,17 @@ function isUuid(value) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value || '').trim());
 }
 
+async function resolveAuthenticatedUserId(fallbackId = null) {
+  if (isUuid(fallbackId)) return String(fallbackId).trim();
+
+  const { data, error } = await supabase.auth.getUser();
+  const userId = data?.user?.id;
+  if (error || !isUuid(userId)) {
+    throw new Error('Nao foi possivel identificar o usuario autenticado.');
+  }
+  return userId;
+}
+
 function generateFamilyCode() {
   return Math.random().toString(36).slice(2, 8).toUpperCase();
 }
@@ -557,16 +568,18 @@ export async function leaveFamilyAsync() {
     throw new Error('Voce nao esta em uma familia.');
   }
 
+  const userId = await resolveAuthenticatedUserId(current.id);
+
   const { error: updateError } = await supabase
     .from('profiles')
     .update({ family_id: null })
-    .eq('id', current.id);
+    .eq('id', userId);
 
   if (updateError) {
     throw new Error(updateError.message || 'Falha ao sair da familia.');
   }
 
-  await syncUserFromRemote(current.id);
+  await syncUserFromRemote(userId);
   dispatchAuthChanged();
   return null;
 }
