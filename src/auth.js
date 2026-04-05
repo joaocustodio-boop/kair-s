@@ -429,23 +429,12 @@ export async function joinFamilyByCode(code) {
   const safeCode = String(code || '').trim().toUpperCase();
   if (!safeCode) throw new Error('Informe o codigo da familia.');
 
-  const { data: family, error: familyError } = await supabase
-    .from('families')
-    .select('id, name, code, owner_id, created_at')
-    .eq('code', safeCode)
-    .maybeSingle();
+  const { error } = await supabase.rpc('join_family_by_code', {
+    input_code: safeCode,
+  });
 
-  if (familyError || !family) {
-    throw new Error('Codigo de familia nao encontrado.');
-  }
-
-  const { error: updateError } = await supabase
-    .from('profiles')
-    .update({ family_id: family.id })
-    .eq('id', current.id);
-
-  if (updateError) {
-    throw new Error(updateError.message || 'Nao foi possivel entrar na familia.');
+  if (error) {
+    throw new Error(error.message || 'Nao foi possivel entrar na familia.');
   }
 
   await syncUserFromRemote(current.id);
