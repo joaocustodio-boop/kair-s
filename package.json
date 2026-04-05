@@ -1,0 +1,25 @@
+{
+  "name": "app-pessoal",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "cap:sync": "npx cap sync",
+    "android:add": "npx cap add android",
+    "android:open": "npx cap open android",
+    "android:copy": "npm run build && npx cap copy android"
+  },
+  "devDependencies": {
+    "typescript": "^6.0.2",
+    "vite": "^8.0.1"
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.3.0",
+    "@capacitor/cli": "^8.3.0",
+    "@capacitor/core": "^8.3.0",
+    "lucide": "^1.7.0"
+  }
+}

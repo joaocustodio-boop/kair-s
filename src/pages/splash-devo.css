@@ -1,0 +1,774 @@
+/* ===== SPLASH BÍBLICO ===== */
+#biblical-splash {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  opacity: 0;
+  transition: opacity 0.4s ease;
+}
+
+#biblical-splash.splash-visible { opacity: 1; }
+#biblical-splash.splash-hiding  { opacity: 0; }
+
+.splash-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(10, 10, 30, 0.85);
+  backdrop-filter: blur(8px);
+}
+
+.splash-modal {
+  position: relative;
+  background: linear-gradient(145deg, #1e1b4b, #312e81, #1e3a5f);
+  border-radius: 24px;
+  padding: 48px 40px;
+  max-width: 520px;
+  width: 100%;
+  text-align: center;
+  box-shadow: 0 30px 80px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.08);
+  color: white;
+}
+
+.splash-cross   { font-size: 2.5rem; margin-bottom: 16px; opacity: 0.9; }
+
+.splash-tag {
+  display: inline-block;
+  background: rgba(255,255,255,0.12);
+  border: 1px solid rgba(255,255,255,0.2);
+  color: rgba(255,255,255,0.85);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 4px 14px;
+  border-radius: 100px;
+  margin-bottom: 24px;
+}
+
+.splash-verse {
+  font-size: 1.1875rem;
+  font-weight: 500;
+  line-height: 1.7;
+  color: rgba(255,255,255,0.95);
+  font-style: italic;
+  margin: 0 0 16px 0;
+}
+
+.splash-ref {
+  display: block;
+  font-size: 0.9375rem;
+  font-weight: 700;
+  color: #a5b4fc;
+  margin-bottom: 24px;
+  font-style: normal;
+}
+
+.splash-source {
+  font-size: 0.75rem;
+  color: rgba(255,255,255,0.4);
+  margin-top: -16px;
+  margin-bottom: 16px;
+}
+
+.splash-divider {
+  width: 60px;
+  height: 1px;
+  background: rgba(255,255,255,0.2);
+  margin: 0 auto 20px;
+}
+
+.splash-greeting {
+  font-size: 0.9375rem;
+  color: rgba(255,255,255,0.7);
+  margin-bottom: 28px;
+}
+
+.splash-btn {
+  background: linear-gradient(135deg, #818cf8, #6366f1);
+  color: white;
+  border: none;
+  padding: 14px 36px;
+  border-radius: 100px;
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  box-shadow: 0 4px 20px rgba(99,102,241,0.4);
+  letter-spacing: 0.02em;
+}
+
+.splash-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 30px rgba(99,102,241,0.5);
+}
+
+.splash-skip {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 20px;
+  font-size: 0.8125rem;
+  color: rgba(255,255,255,0.45);
+  cursor: pointer;
+}
+
+.splash-skip input { cursor: pointer; accent-color: #818cf8; }
+
+@media (max-width: 540px) {
+  .splash-modal { padding: 36px 24px; }
+  .splash-verse { font-size: 1rem; }
+}
+
+/* ===== HEADER DE INSPIRAÇÃO (VRS + MUS) ===== */
+.devo-inspiration-row {
+  display: grid;
+  grid-template-columns: 1.5fr 1fr;
+  gap: 16px;
+}
+
+@media (max-width: 900px) {
+  .devo-inspiration-row { grid-template-columns: 1fr; }
+}
+
+.devo-music-card.audio-only {
+  background: linear-gradient(135deg, #1e1b4b, #312e81);
+  padding: 20px 24px;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 16px;
+  min-height: 100px;
+}
+
+.devo-music-visualizer {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 24px;
+  width: 24px;
+  flex-shrink: 0;
+}
+
+.devo-music-visualizer .bar {
+  width: 3px;
+  height: 100%;
+  background: #f472b6;
+  border-radius: 100px;
+  opacity: 0.3;
+}
+
+.devo-music-visualizer.active .bar {
+  opacity: 1;
+  animation: visualize 0.8s ease-in-out infinite alternate;
+}
+
+.devo-music-visualizer.active .bar:nth-child(2) { animation-delay: 0.1s; animation-duration: 0.6s; }
+.devo-music-visualizer.active .bar:nth-child(3) { animation-delay: 0.2s; animation-duration: 0.9s; }
+.devo-music-visualizer.active .bar:nth-child(4) { animation-delay: 0.3s; animation-duration: 0.7s; }
+
+@keyframes visualize {
+  from { height: 20%; }
+  to   { height: 100%; }
+}
+
+.devo-audio-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-left: auto;
+}
+
+.btn-play-pause {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: var(--accent-primary);
+  border: none;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);
+}
+
+.btn-play-pause:hover {
+  transform: scale(1.1);
+  box-shadow: 0 6px 20px rgba(99, 102, 241, 0.5);
+}
+
+.btn-play-pause svg { width: 20px; height: 20px; fill: white; }
+
+.devo-music-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.devo-music-title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: white;
+  margin-bottom: 2px;
+}
+
+.devo-music-artist {
+  font-size: 0.8125rem;
+  color: rgba(255,255,255,0.6);
+  font-weight: 500;
+}
+
+.audio-status {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: rgba(255,255,255,0.6);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+}
+
+.devo-embed-container { display: none; } /* Ocultar o player de vídeo real */
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ===== DEVOCIONAL – BASE ===== */
+.page-devocional {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.devo-stats-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+
+@media (max-width: 600px) {
+  .devo-stats-row { 
+    grid-template-columns: repeat(3, 1fr); 
+    gap: 8px;
+  }
+}
+
+@media (max-width: 480px) {
+  .devo-stats-row { grid-template-columns: 1fr; }
+}
+
+.devo-stat-card {
+  background: var(--bg-card);
+  border-radius: var(--border-radius-lg);
+  padding: 20px 16px;
+  text-align: center;
+  box-shadow: var(--shadow-md);
+  border: 1px solid rgba(0,0,0,0.03);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+[data-theme='dark'] .devo-stat-card { border-color: rgba(255,255,255,0.03); }
+
+.devo-stat-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--border-radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.devo-stat-icon svg { width: 20px; height: 20px; }
+
+.devo-stat-value {
+  font-size: 1.75rem;
+  font-weight: 800;
+  color: var(--text-primary);
+  line-height: 1;
+}
+
+.devo-stat-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* ===== DAILY VERSE CARD (WEEK VIEW) ===== */
+.devo-daily-verse-card {
+  background: linear-gradient(135deg, #1e1b4b, #2d2270);
+  border-radius: var(--border-radius-xl);
+  padding: 24px;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+  box-shadow: var(--shadow-lg);
+  margin-bottom: 8px;
+}
+
+.devo-daily-verse-card::before {
+  content: "✝";
+  position: absolute;
+  top: -10px; right: 10px;
+  font-size: 80px;
+  opacity: 0.03;
+  line-height: 1;
+  pointer-events: none;
+}
+
+.devo-daily-verse-card.placeholder {
+  background: var(--bg-card);
+  border: 1px dashed rgba(0,0,0,0.1);
+  box-shadow: none;
+}
+
+[data-theme='dark'] .devo-daily-verse-card.placeholder {
+  border-color: rgba(255,255,255,0.1);
+}
+
+/* ===== NAVEGAÇÃO SEMANAL ===== */
+.devo-week-nav {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+
+.devo-week-nav-label {
+  flex: 1;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.devo-week-current-badge {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--accent-primary);
+  background: var(--accent-soft);
+  padding: 2px 10px;
+  border-radius: 100px;
+}
+
+.devo-week-range {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.devo-week-perfect {
+  text-align: center;
+  font-size: 0.9375rem;
+  font-weight: 700;
+  color: #10b981;
+  background: rgba(16,185,129,0.1);
+  padding: 8px 16px;
+  border-radius: var(--border-radius-md);
+  margin-top: 12px;
+}
+
+/* ===== GRADE SEMANAL CLICÁVEL ===== */
+.devo-week-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 8px;
+}
+
+.devo-week-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 8px 4px;
+  border-radius: var(--border-radius-md);
+  transition: background 0.15s ease;
+}
+
+.devo-week-cell:hover:not(:disabled) { background: var(--bg-primary); }
+.devo-week-cell:disabled { cursor: default; }
+
+.devo-week-label {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+}
+
+.devo-week-dot {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--bg-primary);
+  border: 2px solid rgba(0,0,0,0.06);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+[data-theme='dark'] .devo-week-dot { border-color: rgba(255,255,255,0.07); }
+.devo-week-dot svg { width: 16px; height: 16px; }
+
+.devo-week-day-num {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+/* Estados */
+.devo-week-cell.done .devo-week-dot {
+  background: #10b981;
+  border-color: #10b981;
+  color: white;
+}
+
+.devo-week-cell.done .devo-week-label,
+.devo-week-cell.done .devo-week-day-num { color: #10b981; }
+
+.devo-week-cell.is-today .devo-week-dot {
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.devo-week-cell.is-today .devo-week-label,
+.devo-week-cell.is-today .devo-week-day-num { color: var(--accent-primary); }
+
+.devo-week-cell.future { opacity: 0.35; }
+
+.devo-week-cell:not(:disabled):hover .devo-week-dot { transform: scale(1.08); }
+
+/* Barra de progresso */
+.devo-progress-wrap {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.devo-progress-bar {
+  flex: 1;
+  height: 8px;
+  background: var(--bg-primary);
+  border-radius: 100px;
+  overflow: hidden;
+}
+
+.devo-progress-fill {
+  height: 100%;
+  border-radius: 100px;
+  transition: width 0.5s ease;
+}
+
+.devo-progress-label {
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+/* ===== VISTA DE DIA ===== */
+.devo-day-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 4px;
+}
+
+.devo-day-header-info {
+  flex: 1;
+}
+
+.devo-missed-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(239,68,68,0.1);
+  color: #ef4444;
+  font-size: 0.875rem;
+  font-weight: 600;
+  padding: 6px 14px;
+  border-radius: 100px;
+}
+
+.devo-missed-badge svg { width: 14px; height: 14px; }
+
+/* ===== SEÇÕES DO DEVOCIONAL ===== */
+.devo-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.devo-day-badge {
+  display: inline-block;
+  background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+  color: white;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 4px 14px;
+  border-radius: 100px;
+  margin-bottom: 10px;
+}
+
+.devo-done-badge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(16,185,129,0.12);
+  color: #10b981;
+  font-size: 0.875rem;
+  font-weight: 600;
+  padding: 8px 16px;
+  border-radius: 100px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.devo-done-badge svg { width: 16px; height: 16px; }
+
+.devo-verse-card {
+  background: linear-gradient(135deg, #1e1b4b, #2d2270);
+  border-radius: var(--border-radius-xl);
+  padding: 36px;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.devo-verse-card::before {
+  content: "✝";
+  position: absolute;
+  top: -20px; right: 20px;
+  font-size: 120px;
+  opacity: 0.04;
+  line-height: 1;
+}
+
+.devo-verse-label {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #a5b4fc;
+  margin-bottom: 20px;
+}
+
+.devo-verse-label svg { width: 16px; height: 16px; }
+
+.devo-verse-text {
+  font-size: 1.25rem;
+  font-weight: 500;
+  line-height: 1.75;
+  color: rgba(255,255,255,0.95);
+  font-style: italic;
+  margin: 0 auto 16px;
+  max-width: 640px;
+}
+
+.devo-verse-ref {
+  display: block;
+  font-size: 1rem;
+  font-weight: 700;
+  color: #818cf8;
+  font-style: normal;
+}
+
+.devo-api-badge {
+  display: inline-block;
+  margin-top: 12px;
+  font-size: 0.75rem;
+  color: rgba(165,180,252,0.7);
+}
+
+.devo-section {
+  border-radius: var(--border-radius-lg);
+  padding: 28px;
+}
+
+.devo-section.card { box-shadow: var(--shadow-md); }
+
+.devo-section-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.devo-section-header svg { width: 20px; height: 20px; color: var(--accent-primary); }
+.devo-section-header h3  { font-size: 1.125rem; color: var(--text-primary); flex: 1; }
+
+.devo-reading p {
+  color: var(--text-secondary);
+  line-height: 1.8;
+  font-size: 0.9375rem;
+  margin-bottom: 16px;
+}
+
+.devo-reading p:last-child { margin-bottom: 0; }
+
+.devo-reflection-question {
+  display: flex;
+  gap: 14px;
+  background: var(--accent-soft);
+  border-radius: var(--border-radius-md);
+  padding: 16px;
+  border-left: 4px solid var(--accent-primary);
+}
+
+.devo-reflection-question svg { width: 18px; height: 18px; color: var(--accent-primary); flex-shrink: 0; margin-top: 2px; }
+.devo-reflection-question p  { color: var(--text-primary); font-weight: 500; font-size: 0.9375rem; line-height: 1.6; }
+
+.devo-prayer-guide {
+  background: rgba(139,92,246,0.06);
+  border-radius: var(--border-radius-md);
+  padding: 18px;
+  border-left: 4px solid #8b5cf6;
+}
+
+.devo-prayer-guide p {
+  color: var(--text-secondary);
+  font-style: italic;
+  line-height: 1.75;
+  font-size: 0.9375rem;
+}
+
+.devo-challenge-card {
+  background: linear-gradient(135deg, rgba(245,158,11,0.08), rgba(239,68,68,0.05));
+  border: 1px solid rgba(245,158,11,0.2);
+}
+
+.devo-challenge-card .devo-section-header svg { color: #f59e0b; }
+.devo-challenge-text {
+  font-size: 1rem;
+  color: var(--text-secondary);
+  line-height: 1.7;
+  font-weight: 500;
+}
+
+.devo-congrats {
+  margin-top: 16px;
+  padding: 16px;
+  background: rgba(16,185,129,0.1);
+  border-radius: var(--border-radius-md);
+  color: #10b981;
+  font-weight: 600;
+  font-size: 0.9375rem;
+  text-align: center;
+}
+
+.devo-mini-verse {
+  padding: 16px;
+  background: var(--bg-primary);
+  border-radius: var(--border-radius-md);
+  border-left: 3px solid var(--accent-primary);
+}
+
+.devo-mini-text {
+  font-size: 0.9375rem;
+  font-style: italic;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  margin-bottom: 6px;
+}
+
+.devo-mini-ref {
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: var(--accent-primary);
+  font-style: normal;
+}
+
+/* ===== LOADING SKELETON ===== */
+.devo-verse-loading {
+  min-height: 160px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+}
+
+.devo-loading-bar {
+  width: 200px;
+  height: 6px;
+  background: rgba(255,255,255,0.1);
+  border-radius: 100px;
+  overflow: hidden;
+  position: relative;
+}
+
+.devo-loading-bar::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(165,180,252,0.5), transparent);
+  animation: shimmer 1.5s infinite;
+}
+
+@keyframes shimmer {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+/* ===== NAV SIDEBAR HIGHLIGHT ===== */
+.nav-item-devocional a {
+  background: linear-gradient(135deg, rgba(88,80,236,0.08), rgba(99,102,241,0.05));
+  border: 1px solid rgba(88,80,236,0.15);
+}
+
+.nav-item-devocional.active a {
+  background: var(--accent-soft);
+  border-color: var(--accent-primary);
+}
+
+/* ===== DAY VIEW FOOTER GRID ===== */
+.devo-day-footer-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+@media (max-width: 800px) {
+  .devo-day-footer-grid { grid-template-columns: 1fr; }
+}
+
+.devo-song-card-day {
+  border: 1px solid rgba(244, 114, 182, 0.2);
+  background: rgba(244, 114, 182, 0.03);
+}
+
+.devo-song-card-day .devo-section-header svg { color: #f472b6; }
+
+/* ===== RESPONSIVO ===== */
+@media (max-width: 600px) {
+  .devo-verse-card { padding: 28px 20px; }
+  .devo-verse-text { font-size: 1rem; }
+  .devo-section    { padding: 20px; }
+  .devo-week-dot   { width: 30px; height: 30px; }
+  .devo-day-header { flex-direction: column; }
+}

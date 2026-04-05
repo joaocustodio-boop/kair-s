@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">APP PESSOAL</string>
+    <string name="title_activity_main">APP PESSOAL</string>
+    <string name="package_name">com.joaoc.apppessoal</string>
+    <string name="custom_url_scheme">com.joaoc.apppessoal</string>
+</resources>

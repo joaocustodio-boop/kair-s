@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-theme="light">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no, maximum-scale=1.0, minimum-scale=1.0" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="KAIRÓS" />
+    <meta name="theme-color" content="#5850ec" />
+    <link rel="icon" type="image/png" href="/Image.png" />
+    <title>KAIRÓS | João</title>
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <!-- Design System -->
+    <link rel="stylesheet" href="/src/design-system.css" />
+  </head>
+  <body>
+    <div id="app">
+      <!-- Sidebar Desktop (Hidden on mobile) -->
+      <aside class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+          <div class="logo">
+            <img src="/Image.png" alt="KAIRÓS" class="logo-icon logo-animated" style="width:48px;height:48px;object-fit:contain;display:block;" />
+            <span class="logo-text">KAIRÓS</span>
+          </div>
+          <button id="sidebar-toggle" class="sidebar-toggle-btn">
+            <i data-lucide="chevron-left"></i>
+          </button>
+        </div>
+
+        <nav class="sidebar-nav">
+          <div class="nav-section">
+            <h3 class="nav-title">VISÃO GERAL</h3>
+            <ul class="nav-list">
+              <li class="nav-item" id="nav-dashboard">
+                <a href="#" data-link="dashboard">
+                  <i data-lucide="home"></i>
+                  <span>Painel Principal</span>
+                </a>
+              </li>
+              <li class="nav-item nav-item-devocional">
+                <a href="#devocional" data-link="devocional">
+                  <i data-lucide="book-open"></i>
+                  <span>Devocional Diário</span>
+                </a>
+              </li>
+            </ul>
+          </div>
+
+          <div class="nav-section">
+            <h3 class="nav-title">TAREFAS</h3>
+            <ul class="nav-list">
+              <li class="nav-item">
+                <a href="#agenda" data-link="agenda">
+                  <i data-lucide="calendar"></i>
+                  <span>Compromissos</span>
+                </a>
+              </li>
+              <li class="nav-item">
+                <a href="#lembretes" data-link="lembretes">
+                  <i data-lucide="checkbox"></i>
+                  <span>Tarefas</span>
+                </a>
+              </li>
+            </ul>
+          </div>
+
+          <div class="nav-section">
+            <h3 class="nav-title">PESSOAL</h3>
+            <ul class="nav-list">
+              <li class="nav-item">
+                <a href="#financeiro" data-link="financeiro">
+                  <i data-lucide="wallet"></i>
+                  <span>Controle Financeiro</span>
+                </a>
+              </li>
+              <li class="nav-item">
+                <a href="#habitos" data-link="habitos">
+                  <i data-lucide="sparkles"></i>
+                  <span>Hábitos Diários</span>
+                </a>
+              </li>
+              <li class="nav-item">
+                <a href="#exercicios" data-link="exercicios">
+                  <i data-lucide="dumbbell"></i>
+                  <span>Exercícios</span>
+                </a>
+              </li>
+              <li class="nav-item">
+                <a href="#alimentos" data-link="alimentos">
+                  <i aria-hidden="true">🍴</i>
+                  <span>Alimentação</span>
+                </a>
+              </li>
+              <li class="nav-item">
+                <a href="#anotacoes" data-link="anotacoes">
+                  <i data-lucide="file-text"></i>
+                  <span>Anotações</span>
+                </a>
+              </li>
+              <li class="nav-item">
+                <a href="#ajustes" data-link="ajustes">
+                  <i data-lucide="settings"></i>
+                  <span>Ajustes</span>
+                </a>
+              </li>
+            </ul>
+          </div>
+        </nav>
+
+
+      </aside>
+
+      <!-- Main Layout Container -->
+      <div class="layout-main">
+        <!-- Top Header -->
+        <header class="app-header">
+          <div class="header-left">
+            <button id="mobile-menu-toggle" class="mobile-menu-btn">
+              <i data-lucide="menu"></i>
+            </button>
+            <div class="greeting">
+              <h1 id="greeting-text">Olá, João</h1>
+              <p id="current-date" class="header-date">Carregando data...</p>
+            </div>
+          </div>
+          <div class="header-right">
+            <!-- Theme toggle -->
+            <button id="header-theme-toggle" class="header-icon-btn" title="Alternar tema">
+              <i data-lucide="sun" id="header-theme-icon-light"></i>
+              <i data-lucide="moon" id="header-theme-icon-dark" style="display:none"></i>
+            </button>
+
+            <!-- Notifications -->
+            <div class="notification-wrapper">
+              <button id="header-notif-btn" class="notification-btn">
+                <i data-lucide="bell"></i>
+                <span class="notification-dot" id="notif-dot" style="display:none"></span>
+              </button>
+              <div class="notif-panel" id="notif-panel" style="display:none">
+                <div class="notif-panel-header">
+                  <span class="notif-panel-title">Notificações</span>
+                  <button class="notif-mark-btn" id="notif-mark-btn">Limpar</button>
+                </div>
+                <div class="notif-list" id="notif-list"></div>
+              </div>
+            </div>
+
+            <!-- User Profile -->
+            <div class="user-profile">
+              <button id="header-profile-btn" class="profile-avatar-btn">
+                <img id="user-profile-img" src="https://ui-avatars.com/api/?name=Joao&background=5850ec&color=fff" alt="Perfil" />
+              </button>
+              <div class="profile-panel" id="profile-panel" style="display:none">
+                <div class="profile-panel-info">
+                  <img id="profile-panel-img" src="https://ui-avatars.com/api/?name=Joao&background=5850ec&color=fff" alt="Perfil" />
+                  <div class="profile-panel-meta">
+                    <strong id="profile-panel-name">João</strong>
+                    <small id="profile-panel-level">Nível 1 · 0 XP</small>
+                  </div>
+                </div>
+                <div class="profile-panel-divider"></div>
+                <div class="profile-panel-links">
+                  <button id="profile-settings-btn" class="profile-panel-link">
+                    <i data-lucide="settings"></i> Configurações
+                  </button>
+                </div>
+                <div class="profile-panel-divider"></div>
+                <button id="profile-logout-btn" class="profile-panel-logout">
+                  <i data-lucide="log-out"></i>
+                  Sair da conta
+                </button>
+              </div>
+            </div>
+          </div>
+        </header>
+
+        <!-- Dynamic Content Area -->
+        <main class="app-content">
+          <div id="page-content">
+            <!-- Page content rendered by router -->
+          </div>
+        </main>
+      </div>
+
+      <!-- Bottom Nav (Visible only on mobile) -->
+      <nav class="bottom-nav" aria-label="Navegação móvel">
+        <a href="#" class="nav-link" data-route="">
+          <i data-lucide="home"></i>
+          <span>Início</span>
+        </a>
+        <a href="#habitos" class="nav-link" data-route="habitos">
+          <i data-lucide="sparkles"></i>
+          <span>Hábitos</span>
+        </a>
+        <a href="#exercicios" class="nav-link" data-route="exercicios">
+          <i data-lucide="dumbbell"></i>
+          <span>Treino</span>
+        </a>
+        <a href="#lembretes" class="nav-link" data-route="lembretes">
+          <i data-lucide="sticky-note"></i>
+          <span>Tarefas</span>
+        </a>
+        <a href="#alimentos" class="nav-link" data-route="alimentos">
+          <i aria-hidden="true">🍴</i>
+          <span>Alimentação</span>
+        </a>
+        <a href="#devocional" class="nav-link" data-route="devocional">
+          <i data-lucide="book-open"></i>
+          <span>Devo</span>
+        </a>
+      </nav>
+    </div>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
