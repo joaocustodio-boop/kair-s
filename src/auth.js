@@ -694,40 +694,57 @@ export async function joinFamilyByCode(code) {
   const safeCode = normalizeFamilyCodeInput(code);
   if (!safeCode) throw new Error('Informe o codigo da familia.');
 
+  // Try RPC first
   try {
-    const { error } = await supabase.rpc('join_family_by_code', {
-      input_code: safeCode,
-    });
+    const { error } = await supabase.rpc('join_family_by_code', { input_code: safeCode });
+    if (!error) {
+      await syncUserFromRemote(userId);
+      dispatchAuthChanged();
+      return getCurrentFamily();
+    }
+  } catch { /* fall through to direct fallback */ }
 
-    if (error) {
-      throw error;
+  // Fallback for UUID users: query families table + update profile directly
+  if (isUuid(current.id)) {
+    const { data: familyRow, error: findError } = await supabase
+      .from('families')
+      .select('id, name, code')
+      .ilike('code', safeCode)
+      .limit(1)
+      .maybeSingle();
+
+    if (findError || !familyRow) {
+      throw new Error('Familia nao encontrada com esse codigo.');
+    }
+
+    const { error: updateError } = await supabase
+      .from('profiles')
+      .update({ family_id: familyRow.id })
+      .eq('id', userId);
+
+    if (updateError) {
+      throw new Error(updateError.message || 'Falha ao entrar na familia.');
     }
 
     await syncUserFromRemote(userId);
     dispatchAuthChanged();
     return getCurrentFamily();
-  } catch (error) {
-    if (isUuid(current.id)) {
-      throw new Error(error?.message || 'Nao foi possivel entrar na familia.');
-    }
-
-    const db = readDb();
-    const localFamily = db.families.find((f) => familyCodeMatches(f.code, safeCode));
-    if (!localFamily) {
-      throw new Error('Codigo de familia nao encontrado.');
-    }
-
-    db.users = db.users.map((u) => {
-      if (u.id !== current.id) return u;
-      return {
-        ...u,
-        familyId: localFamily.id,
-      };
-    });
-    writeDb(db);
-    dispatchAuthChanged();
-    return getCurrentFamily();
   }
+
+  // Local fallback for legacy users
+  const db = readDb();
+  const localFamily = db.families.find((f) => familyCodeMatches(f.code, safeCode));
+  if (!localFamily) {
+    throw new Error('Codigo de familia nao encontrado.');
+  }
+
+  db.users = db.users.map((u) => {
+    if (u.id !== current.id) return u;
+    return { ...u, familyId: localFamily.id };
+  });
+  writeDb(db);
+  dispatchAuthChanged();
+  return getCurrentFamily();
 }
 
 export async function findFamilyByCode(code) {
@@ -741,35 +758,37 @@ export async function findFamilyByCode(code) {
   const safeCode = normalizeFamilyCodeInput(code);
   if (!safeCode) throw new Error('Informe o codigo da familia.');
 
+  // Try RPC first
   try {
-    const { data, error } = await supabase.rpc('find_family_by_code', {
-      input_code: safeCode,
-    });
+    const { data, error } = await supabase.rpc('find_family_by_code', { input_code: safeCode });
+    if (!error) return unwrapRpcSingle(data);
+  } catch { /* fall through */ }
 
-    if (error) {
-      throw error;
-    }
-
-    return unwrapRpcSingle(data);
-  } catch (error) {
-    if (isUuid(current.id)) {
-      throw new Error(error?.message || 'Nao foi possivel buscar a familia.');
-    }
-
-    const db = readDb();
-    const localFamily = db.families.find((f) => familyCodeMatches(f.code, safeCode));
-    if (localFamily) {
-      return {
-        id: localFamily.id,
-        name: localFamily.name,
-        code: localFamily.code,
-        owner_id: localFamily.ownerId || null,
-        created_at: localFamily.createdAt || null,
-      };
-    }
-
-    return null;
+  // Fallback for UUID users: direct table query
+  if (isUuid(current.id)) {
+    const { data: familyRow, error } = await supabase
+      .from('families')
+      .select('id, name, code, owner_id, created_at')
+      .ilike('code', safeCode)
+      .limit(1)
+      .maybeSingle();
+    if (error) throw new Error(error.message || 'Nao foi possivel buscar a familia.');
+    return familyRow || null;
   }
+
+  // Local fallback for legacy users
+  const db = readDb();
+  const localFamily = db.families.find((f) => familyCodeMatches(f.code, safeCode));
+  if (localFamily) {
+    return {
+      id: localFamily.id,
+      name: localFamily.name,
+      code: localFamily.code,
+      owner_id: localFamily.ownerId || null,
+      created_at: localFamily.createdAt || null,
+    };
+  }
+  return null;
 }
 
 export async function searchFamiliesByName(nameQuery) {
@@ -811,25 +830,29 @@ export async function searchFamiliesByName(nameQuery) {
     return Array.from(uniqueById.values()).slice(0, 30);
   }
 
+  // Try RPC first
   try {
-    const { data, error } = await supabase.rpc('search_families_by_name', {
-      input_name: rpcQuery,
-    });
-
-    if (error) {
-      throw error;
+    const { data, error } = await supabase.rpc('search_families_by_name', { input_name: rpcQuery });
+    if (!error) {
+      if (Array.isArray(data)) return mergeFamilies(data);
+      const single = unwrapRpcSingle(data);
+      return mergeFamilies(single ? [single] : []);
     }
+  } catch { /* fall through */ }
 
-    if (Array.isArray(data)) return mergeFamilies(data);
-    const single = unwrapRpcSingle(data);
-    return mergeFamilies(single ? [single] : []);
-  } catch (error) {
-    if (isUuid(current.id) && localFamilies.length === 0) {
-      throw new Error(error?.message || 'Nao foi possivel buscar familias.');
-    }
-
-    return localFamilies;
+  // Fallback for UUID users: direct table query
+  if (isUuid(current.id)) {
+    let query = supabase
+      .from('families')
+      .select('id, name, code, owner_id, created_at')
+      .limit(30);
+    if (safeQuery) query = query.ilike('name', `%${safeQuery}%`);
+    const { data: rows, error } = await query;
+    if (error) throw new Error(error.message || 'Nao foi possivel buscar familias.');
+    return mergeFamilies(Array.isArray(rows) ? rows : []);
   }
+
+  return localFamilies;
 }
 
 export async function requestFamilyJoinByCode(code) {

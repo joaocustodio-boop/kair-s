@@ -6,6 +6,7 @@ import {
   updateUserPassword,
   createFamily,
   findFamilyByCode,
+  joinFamilyByCode,
   requestFamilyJoinByCode,
   listPendingFamilyJoinRequests,
   reviewFamilyJoinRequest,
@@ -207,8 +208,8 @@ export function render(state = {}) {
                   <span>${escapeHtml(item.name || 'Familia')}</span>
                   <small style="display:block;color:var(--text-muted)">Código: ${escapeHtml(item.code || '')}</small>
                 </div>
-                <button class="btn btn-secondary" data-action="request-access-catalog" data-code="${escapeHtml(item.code || '')}" type="button" style="padding:6px 10px;font-size:0.75rem">
-                  Solicitar acesso
+                <button class="btn btn-primary" data-action="join-catalog" data-code="${escapeHtml(item.code || '')}" type="button" style="padding:6px 10px;font-size:0.75rem">
+                  <i data-lucide="log-in"></i> Entrar
                 </button>
               </div>
             `).join('') : ''}
@@ -218,15 +219,20 @@ export function render(state = {}) {
             <button id="ajustes-find-family" class="btn btn-secondary" type="button">
               <i data-lucide="search"></i> Buscar
             </button>
-            <button id="ajustes-join-family" class="btn btn-secondary" type="button">
-              <i data-lucide="send"></i> Solicitar acesso
+            <button id="ajustes-join-family" class="btn btn-primary" type="button">
+              <i data-lucide="log-in"></i> Entrar na família
             </button>
           </div>
           ${familyLookup ? `
-            <p class="page-subtitle" style="margin-top:8px">
-              Família encontrada: <strong>${escapeHtml(familyLookup.name || 'Familia')}</strong>
-              (${escapeHtml(familyLookup.code || '')})
-            </p>
+            <div class="ajustes-family-lookup-card" style="margin-top:8px;padding:10px 12px;background:var(--accent-soft);border-radius:10px;display:flex;align-items:center;justify-content:space-between;gap:10px">
+              <div>
+                <strong style="color:var(--text-primary)">${escapeHtml(familyLookup.name || 'Familia')}</strong>
+                <small style="display:block;color:var(--text-muted)">Código: ${escapeHtml(familyLookup.code || '')}</small>
+              </div>
+              <button id="ajustes-join-found-family" class="btn btn-primary" type="button" data-code="${escapeHtml(familyLookup.code || '')}">
+                <i data-lucide="log-in"></i> Entrar
+              </button>
+            </div>
           ` : ''}
         `}
       </div>
@@ -371,12 +377,13 @@ export function init(container, stateArg) {
 
   container.querySelector('#ajustes-join-family')?.addEventListener('click', async () => {
     const code = String(container.querySelector('#ajustes-family-code')?.value || '').trim();
+    if (!code) { alert('Informe o código da família.'); return; }
     try {
-      await requestFamilyJoinByCode(code);
-      alert('Solicitação enviada para o criador da família.');
+      await joinFamilyByCode(code);
+      alert('Você entrou na família com sucesso!');
       rerender();
     } catch (err) {
-      alert(err?.message || 'Não foi possível solicitar acesso à família.');
+      alert(err?.message || 'Não foi possível entrar na família. Verifique o código e tente novamente.');
     }
   });
 
@@ -520,16 +527,28 @@ export function init(container, stateArg) {
     });
   });
 
-  container.querySelectorAll('[data-action="request-access-catalog"]').forEach((btn) => {
+  container.querySelectorAll('[data-action="join-catalog"]').forEach((btn) => {
     btn.addEventListener('click', async () => {
       const code = String(btn.dataset.code || '').trim();
       try {
-        await requestFamilyJoinByCode(code);
-        alert('Solicitação enviada para o criador da família.');
+        await joinFamilyByCode(code);
+        alert('Você entrou na família com sucesso!');
+        rerender();
       } catch (err) {
-        alert(err?.message || 'Não foi possível solicitar acesso à família.');
+        alert(err?.message || 'Não foi possível entrar na família.');
       }
     });
+  });
+
+  container.querySelector('#ajustes-join-found-family')?.addEventListener('click', async () => {
+    const code = String(container.querySelector('#ajustes-join-found-family')?.dataset.code || '').trim();
+    try {
+      await joinFamilyByCode(code);
+      alert('Você entrou na família com sucesso!');
+      rerender();
+    } catch (err) {
+      alert(err?.message || 'Não foi possível entrar na família.');
+    }
   });
 
   container.querySelectorAll('[data-action="approve-join-request"]').forEach((btn) => {
