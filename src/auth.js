@@ -11,6 +11,36 @@ function normalizeEmail(email) {
   return String(email || '').trim().toLowerCase();
 }
 
+function normalizeFamilyCode(code) {
+  return String(code || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+}
+
+function normalizeSearchText(text) {
+  return String(text || '')
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+}
+
+function familyCodeMatches(candidateCode, inputCode) {
+  const candidate = normalizeFamilyCode(candidateCode);
+  const input = normalizeFamilyCode(inputCode);
+  if (!candidate || !input) return false;
+  if (candidate === input) return true;
+
+  const inputAsLetters = input.replace(/1/g, 'I').replace(/0/g, 'O');
+  const inputAsDigits = input.replace(/I/g, '1').replace(/O/g, '0');
+  return candidate === inputAsLetters || candidate === inputAsDigits;
+}
+
+function unwrapRpcSingle(data) {
+  if (Array.isArray(data)) {
+    return data[0] || null;
+  }
+  return data || null;
+}
+
 function isUuid(value) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value || '').trim());
 }
@@ -663,17 +693,40 @@ export async function joinFamilyByCode(code) {
   const safeCode = normalizeFamilyCodeInput(code);
   if (!safeCode) throw new Error('Informe o codigo da familia.');
 
-  const { error } = await supabase.rpc('join_family_by_code', {
-    input_code: safeCode,
-  });
+  try {
+    const { error } = await supabase.rpc('join_family_by_code', {
+      input_code: safeCode,
+    });
 
-  if (error) {
-    throw new Error(error.message || 'Nao foi possivel entrar na familia.');
+    if (error) {
+      throw error;
+    }
+
+    await syncUserFromRemote(current.id);
+    dispatchAuthChanged();
+    return getCurrentFamily();
+  } catch (error) {
+    if (isUuid(current.id)) {
+      throw new Error(error?.message || 'Nao foi possivel entrar na familia.');
+    }
+
+    const db = readDb();
+    const localFamily = db.families.find((f) => familyCodeMatches(f.code, safeCode));
+    if (!localFamily) {
+      throw new Error('Codigo de familia nao encontrado.');
+    }
+
+    db.users = db.users.map((u) => {
+      if (u.id !== current.id) return u;
+      return {
+        ...u,
+        familyId: localFamily.id,
+      };
+    });
+    writeDb(db);
+    dispatchAuthChanged();
+    return getCurrentFamily();
   }
-
-  await syncUserFromRemote(current.id);
-  dispatchAuthChanged();
-  return getCurrentFamily();
 }
 
 export async function findFamilyByCode(code) {
@@ -687,15 +740,33 @@ export async function findFamilyByCode(code) {
   const safeCode = normalizeFamilyCodeInput(code);
   if (!safeCode) throw new Error('Informe o codigo da familia.');
 
-  const { data, error } = await supabase.rpc('find_family_by_code', {
-    input_code: safeCode,
-  });
+  try {
+    const { data, error } = await supabase.rpc('find_family_by_code', {
+      input_code: safeCode,
+    });
 
-  if (error) {
-    throw new Error(error.message || 'Nao foi possivel buscar a familia.');
+    if (error) {
+      throw error;
+    }
+
+    return unwrapRpcSingle(data);
+  } catch (error) {
+    const db = readDb();
+    const localFamily = db.families.find((f) => familyCodeMatches(f.code, safeCode));
+    if (localFamily) {
+      return {
+        id: localFamily.id,
+        name: localFamily.name,
+        code: localFamily.code,
+        owner_id: localFamily.ownerId || null,
+        created_at: localFamily.createdAt || null,
+      };
+    }
+    if (isUuid(current.id)) {
+      throw new Error(error?.message || 'Nao foi possivel buscar a familia.');
+    }
+    return null;
   }
-
-  return data || null;
 }
 
 export async function searchFamiliesByName(nameQuery) {
@@ -709,15 +780,38 @@ export async function searchFamiliesByName(nameQuery) {
   const safeQuery = String(nameQuery || '').trim();
   if (!safeQuery) return [];
 
-  const { data, error } = await supabase.rpc('search_families_by_name', {
-    input_name: safeQuery,
-  });
+  try {
+    const { data, error } = await supabase.rpc('search_families_by_name', {
+      input_name: safeQuery,
+    });
 
-  if (error) {
-    throw new Error(error.message || 'Nao foi possivel buscar familias.');
+    if (error) {
+      throw error;
+    }
+
+    if (Array.isArray(data)) return data;
+    const single = unwrapRpcSingle(data);
+    return single ? [single] : [];
+  } catch (error) {
+    const db = readDb();
+    const query = normalizeSearchText(safeQuery);
+    const locals = db.families
+      .filter((f) => normalizeSearchText(f.name).includes(query))
+      .slice(0, 30)
+      .map((f) => ({
+        id: f.id,
+        name: f.name,
+        code: f.code,
+        owner_id: f.ownerId || null,
+        created_at: f.createdAt || null,
+      }));
+
+    if (isUuid(current.id)) {
+      throw new Error(error?.message || 'Nao foi possivel buscar familias.');
+    }
+
+    return locals;
   }
-
-  return Array.isArray(data) ? data : [];
 }
 
 export async function requestFamilyJoinByCode(code) {
