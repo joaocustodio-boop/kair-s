@@ -62,7 +62,9 @@ security definer
 set search_path = public
 as $$
 declare
-  safe_code text := upper(trim(coalesce(input_code, '')));
+  safe_code text := upper(regexp_replace(trim(coalesce(input_code, '')), '[^A-Z0-9]', '', 'g'));
+  alt_letter_code text;
+  alt_digit_code text;
   target_family public.families;
   auth_user_email text;
   auth_user_name text;
@@ -80,6 +82,22 @@ begin
   from public.families
   where upper(code) = safe_code
   limit 1;
+
+  if target_family.id is null then
+    alt_letter_code := translate(safe_code, '10', 'IO');
+    alt_digit_code := translate(safe_code, 'IO', '10');
+
+    select *
+    into target_family
+    from public.families
+    where upper(code) in (alt_letter_code, alt_digit_code)
+    order by case
+      when upper(code) = alt_letter_code then 0
+      when upper(code) = alt_digit_code then 1
+      else 2
+    end
+    limit 1;
+  end if;
 
   if target_family.id is null then
     raise exception 'Codigo de familia nao encontrado.';
