@@ -189,7 +189,7 @@ function buildPasswordRecoveryRedirect() {
   const baseUrl = configuredUrl || (isLocalhost ? 'https://kair-s-virid.vercel.app' : window.location.origin);
   const url = new URL(baseUrl);
   url.search = '';
-  url.searchParams.set('mode', 'recovery');
+  url.hash = '';
   return url.toString();
 }
 

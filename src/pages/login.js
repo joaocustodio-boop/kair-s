@@ -14,7 +14,16 @@ import {
 import { refreshIcons } from '../icons.js';
 
 function getAuthMode() {
-  if (new URLSearchParams(window.location.search).get('mode') === 'recovery') {
+  const searchParams = new URLSearchParams(window.location.search);
+  const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+  const isRecoveryFlow = searchParams.get('mode') === 'recovery'
+    || searchParams.get('type') === 'recovery'
+    || hashParams.get('type') === 'recovery'
+    || hashParams.has('access_token')
+    || searchParams.has('access_token')
+    || searchParams.has('code');
+
+  if (isRecoveryFlow) {
     return 'reset';
   }
   return 'login';
