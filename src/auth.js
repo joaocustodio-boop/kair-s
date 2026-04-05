@@ -23,6 +23,29 @@ function normalizeSearchText(text) {
     .replace(/[\u0300-\u036f]/g, '');
 }
 
+function mapAuthErrorMessage(error, fallbackMessage) {
+  const rawMessage = String(error?.message || '').trim();
+  const normalized = rawMessage.toLowerCase();
+
+  if (normalized.includes('email not confirmed')) {
+    return 'Confirme seu email antes de entrar.';
+  }
+  if (normalized.includes('invalid login credentials')) {
+    return 'Email ou senha invalidos.';
+  }
+  if (normalized.includes('user already registered')) {
+    return 'Ja existe uma conta com esse email.';
+  }
+  if (normalized.includes('password should be at least')) {
+    return 'A senha precisa ter pelo menos 6 caracteres.';
+  }
+  if (normalized.includes('signup is disabled')) {
+    return 'Cadastro desabilitado no momento.';
+  }
+
+  return rawMessage || fallbackMessage;
+}
+
 function familyCodeMatches(candidateCode, inputCode) {
   const candidate = normalizeFamilyCode(candidateCode);
   const input = normalizeFamilyCode(inputCode);
@@ -271,14 +294,23 @@ function ensureSupabaseConfigured() {
   }
 }
 
-function buildPasswordRecoveryRedirect() {
+function buildAppRedirect(extraParams = {}) {
   const configuredUrl = String(import.meta.env.VITE_APP_URL || '').trim();
   const isLocalhost = ['localhost', '127.0.0.1'].includes(window.location.hostname);
   const baseUrl = configuredUrl || (isLocalhost ? 'https://kair-s-virid.vercel.app' : window.location.origin);
   const url = new URL(baseUrl);
   url.search = '';
   url.hash = '';
+  Object.entries(extraParams).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && String(value).trim() !== '') {
+      url.searchParams.set(key, String(value));
+    }
+  });
   return url.toString();
+}
+
+function buildPasswordRecoveryRedirect() {
+  return buildAppRedirect({ mode: 'recovery' });
 }
 
 export function isAuthenticated() {
@@ -336,15 +368,26 @@ export async function registerUser({ name, email, password }) {
   const { data, error } = await supabase.auth.signUp({
     email: safeEmail,
     password: safePassword,
+    options: {
+      data: { name: safeName },
+      emailRedirectTo: buildAppRedirect(),
+    },
   });
 
   if (error) {
-    throw new Error(error.message || 'Falha no cadastro.');
+    throw new Error(mapAuthErrorMessage(error, 'Falha no cadastro.'));
   }
 
   const userId = data?.user?.id;
   if (!userId) {
     throw new Error('Cadastro criado. Verifique seu email para confirmar a conta e depois faca login.');
+  }
+
+  if (!data?.session?.user?.id) {
+    return {
+      requiresEmailConfirmation: true,
+      message: 'Cadastro criado. Verifique seu email para confirmar a conta antes de entrar.',
+    };
   }
 
   const { error: profileError } = await supabase.from('profiles').upsert({
@@ -362,7 +405,11 @@ export async function registerUser({ name, email, password }) {
   await syncUserFromRemote(userId);
   dispatchAuthChanged();
 
-  return getCurrentUser();
+  return {
+    requiresEmailConfirmation: false,
+    user: getCurrentUser(),
+    message: 'Conta criada com sucesso.',
+  };
 }
 
 export async function loginUser(email, password) {
@@ -377,7 +424,7 @@ export async function loginUser(email, password) {
   });
 
   if (error || !data?.user?.id) {
-    throw new Error('Email ou senha invalidos.');
+    throw new Error(mapAuthErrorMessage(error, 'Email ou senha invalidos.'));
   }
 
   const userId = data.user.id;
@@ -401,7 +448,7 @@ export async function requestPasswordReset(email) {
   });
 
   if (error) {
-    throw new Error(error.message || 'Nao foi possivel enviar o email de recuperacao.');
+    throw new Error(mapAuthErrorMessage(error, 'Nao foi possivel enviar o email de recuperacao.'));
   }
 }
 
@@ -420,6 +467,17 @@ export async function preparePasswordRecoverySession() {
     return;
   }
 
+  if (searchParams.has('access_token') && searchParams.has('refresh_token')) {
+    const { error } = await supabase.auth.setSession({
+      access_token: String(searchParams.get('access_token') || ''),
+      refresh_token: String(searchParams.get('refresh_token') || ''),
+    });
+    if (error) {
+      throw new Error(error.message || 'Nao foi possivel validar o link de recuperacao.');
+    }
+    return;
+  }
+
   if (hashParams.has('access_token') && hashParams.has('refresh_token')) {
     const { error } = await supabase.auth.setSession({
       access_token: String(hashParams.get('access_token') || ''),
@@ -431,9 +489,9 @@ export async function preparePasswordRecoverySession() {
     return;
   }
 
-  if (searchParams.get('type') === 'recovery' && searchParams.has('token_hash')) {
+  if (searchParams.has('token_hash')) {
     const { error } = await supabase.auth.verifyOtp({
-      type: 'recovery',
+      type: searchParams.get('type') === 'recovery' ? 'recovery' : 'recovery',
       token_hash: String(searchParams.get('token_hash') || ''),
     });
     if (error) {

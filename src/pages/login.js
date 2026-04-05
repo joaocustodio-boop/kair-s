@@ -20,6 +20,7 @@ function getAuthMode() {
   const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
   const isRecoveryFlow = searchParams.get('mode') === 'recovery'
     || searchParams.get('type') === 'recovery'
+    || searchParams.has('token_hash')
     || hashParams.get('type') === 'recovery'
     || hashParams.has('access_token')
     || searchParams.has('access_token')
@@ -228,9 +229,9 @@ export function init(container) {
       const email = container.querySelector('#auth-register-email')?.value || '';
       const password = container.querySelector('#auth-register-password')?.value || '';
       try {
-        await registerUser({ name, email, password });
+        const result = await registerUser({ name, email, password });
         tab = 'login';
-        error = '';
+        error = result?.message || 'Conta criada com sucesso.';
         window.location.hash = 'login';
         rerender();
       } catch (err) {
