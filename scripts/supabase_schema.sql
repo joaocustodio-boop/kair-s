@@ -97,6 +97,28 @@ begin
     raise exception 'Email do usuario nao encontrado.';
   end if;
 
+  update public.profiles
+  set
+    family_id = target_family.id,
+    name = coalesce(nullif(public.profiles.name, ''), auth_user_name),
+    email = coalesce(public.profiles.email, auth_user_email)
+  where id = auth.uid();
+
+  if found then
+    return target_family;
+  end if;
+
+  update public.profiles
+  set
+    id = auth.uid(),
+    family_id = target_family.id,
+    name = coalesce(nullif(public.profiles.name, ''), auth_user_name)
+  where lower(email) = auth_user_email;
+
+  if found then
+    return target_family;
+  end if;
+
   insert into public.profiles (id, name, email, family_id)
   values (auth.uid(), auth_user_name, auth_user_email, target_family.id)
   on conflict (id)
