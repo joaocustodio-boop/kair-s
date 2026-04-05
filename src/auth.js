@@ -507,9 +507,6 @@ export async function createFamily(name) {
     throw new Error('Faca login para criar uma familia.');
   }
 
-  const userId = await resolveAuthenticatedUserId(current.id);
-  await ensureRemoteProfile(userId);
-
   const safeName = String(name || '').trim();
   if (!safeName) {
     throw new Error('Informe o nome da familia.');
@@ -517,6 +514,57 @@ export async function createFamily(name) {
 
   if (current.familyId) {
     return getCurrentFamily();
+  }
+
+  async function createFamilyLocallyForLegacyUser() {
+    const db = readDb();
+
+    let familyCode = generateFamilyCode();
+    let guard = 0;
+    while (db.families.some((f) => String(f.code || '').toUpperCase() === familyCode) && guard < 10) {
+      familyCode = generateFamilyCode();
+      guard += 1;
+    }
+
+    const familyId = generateId('fam');
+    const createdAt = new Date().toISOString();
+
+    const localUser = {
+      id: current.id,
+      name: current.name || 'Usuario',
+      email: normalizeEmail(current.email || ''),
+      photoUrl: current.photoUrl || null,
+      familyId,
+      createdAt: current.createdAt || createdAt,
+    };
+
+    db.users = [...db.users.filter((u) => u.id !== localUser.id), localUser];
+    db.families = [
+      ...db.families.filter((f) => f.id !== familyId),
+      {
+        id: familyId,
+        name: safeName,
+        code: familyCode,
+        ownerId: current.id,
+        createdAt,
+        dependents: [],
+      },
+    ];
+
+    writeDb(db);
+    dispatchAuthChanged();
+    return getCurrentFamily();
+  }
+
+  let userId;
+  try {
+    userId = await resolveAuthenticatedUserId(current.id);
+    await ensureRemoteProfile(userId);
+  } catch (error) {
+    if (!isUuid(current.id)) {
+      return createFamilyLocallyForLegacyUser();
+    }
+    throw error;
   }
 
   let familyCode = generateFamilyCode();
