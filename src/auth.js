@@ -778,10 +778,11 @@ export async function searchFamiliesByName(nameQuery) {
   }
 
   const safeQuery = String(nameQuery || '').trim();
+  const rpcQuery = safeQuery || '%';
 
   try {
     const { data, error } = await supabase.rpc('search_families_by_name', {
-      input_name: safeQuery,
+      input_name: rpcQuery,
     });
 
     if (error) {
