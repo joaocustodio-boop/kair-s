@@ -392,6 +392,32 @@ export async function createFamily(name) {
   return getCurrentFamily();
 }
 
+export async function leaveFamilyAsync() {
+  ensureSupabaseConfigured();
+
+  const current = getCurrentUser();
+  if (!current) {
+    throw new Error('Faca login para sair de uma familia.');
+  }
+
+  if (!current.familyId) {
+    throw new Error('Voce nao esta em uma familia.');
+  }
+
+  const { error: updateError } = await supabase
+    .from('profiles')
+    .update({ family_id: null })
+    .eq('id', current.id);
+
+  if (updateError) {
+    throw new Error(updateError.message || 'Falha ao sair da familia.');
+  }
+
+  await syncUserFromRemote(current.id);
+  dispatchAuthChanged();
+  return null;
+}
+
 export async function joinFamilyByCode(code) {
   ensureSupabaseConfigured();
 

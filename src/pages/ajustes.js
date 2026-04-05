@@ -6,6 +6,7 @@ import {
   updateUserPassword,
   createFamily,
   joinFamilyByCode,
+  leaveFamilyAsync,
   addDependentChild,
   updateDependentChild,
 } from '../auth.js';
@@ -138,6 +139,12 @@ export function render(state = {}) {
           <div class="form-row">
             <input id="ajustes-child-photo-url" class="form-input" type="text" placeholder="URL da foto do filho (ou use botão Foto)" />
           </div>
+
+          <div class="form-row form-row-inline" style="margin-top:1rem;padding-top:1rem;border-top:1px solid var(--border-color)">
+            <button id="ajustes-leave-family" class="btn btn-secondary" type="button" style="background-color:#ff6b6b;color:white;border:none">
+              <i data-lucide="log-out"></i> Sair da família
+            </button>
+          </div>
         ` : `
           <div class="form-row form-row-inline">
             <input id="ajustes-family-name" class="form-input" type="text" placeholder="Nome da família" />
@@ -260,6 +267,19 @@ export function init(container, stateArg) {
       rerender();
     } catch (err) {
       alert(err?.message || 'Não foi possível entrar na família.');
+    }
+  });
+
+  container.querySelector('#ajustes-leave-family')?.addEventListener('click', async () => {
+    if (!confirm('Você tem certeza que deseja sair da família?')) {
+      return;
+    }
+    try {
+      await leaveFamilyAsync();
+      alert('Você saiu da família.');
+      rerender();
+    } catch (err) {
+      alert(err?.message || 'Não foi possível sair da família.');
     }
   });
 
