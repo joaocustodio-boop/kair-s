@@ -11,6 +11,7 @@ import {
   leaveFamilyAsync,
   addDependentChild,
   updateDependentChild,
+  deleteDependentChild,
 } from '../auth.js';
 import { refreshIcons } from '../icons.js';
 
@@ -104,6 +105,9 @@ export function render(state = {}) {
                 ${m.isDependent ? `
                   <button class="btn btn-secondary" data-action="edit-child" data-id="${escapeHtml(m.id)}" type="button" style="padding:6px 10px;font-size:0.75rem">
                     <i data-lucide="pencil"></i> Editar
+                  </button>
+                  <button class="btn btn-secondary" data-action="delete-child" data-id="${escapeHtml(m.id)}" type="button" style="padding:6px 10px;font-size:0.75rem;background-color:#ff6b6b;color:white;border:none">
+                    <i data-lucide="trash-2"></i> Excluir
                   </button>
                 ` : ''}
               </div>
@@ -414,6 +418,25 @@ export function init(container, stateArg) {
         rerender();
       } catch (err) {
         alert(err?.message || 'Não foi possível atualizar o filho.');
+      }
+    });
+  });
+
+  container.querySelectorAll('[data-action="delete-child"]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const id = String(btn.dataset.id || '');
+      if (!confirm('Tem certeza que deseja excluir este filho?')) {
+        return;
+      }
+      try {
+        await deleteDependentChild(id);
+        if (state.editingChildId === id) {
+          state.editingChildId = null;
+        }
+        alert('Filho excluido com sucesso!');
+        rerender();
+      } catch (err) {
+        alert(err?.message || 'Nao foi possivel excluir o filho.');
       }
     });
   });

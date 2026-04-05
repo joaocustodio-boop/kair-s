@@ -784,6 +784,32 @@ export async function updateDependentChild({ dependentId, name, birthDate = '', 
   dispatchAuthChanged();
 }
 
+export async function deleteDependentChild(dependentId) {
+  ensureSupabaseConfigured();
+
+  const current = getCurrentUser();
+  if (!current) {
+    throw new Error('Faca login para excluir dependentes.');
+  }
+  if (!current.familyId) {
+    throw new Error('Voce precisa estar em uma familia.');
+  }
+
+  const safeDependentId = String(dependentId || '').trim();
+  if (!safeDependentId) throw new Error('Dependente invalido.');
+
+  const { error } = await supabase
+    .from('dependents')
+    .delete()
+    .eq('id', safeDependentId)
+    .eq('family_id', current.familyId);
+
+  if (error) throw new Error(error.message || 'Nao foi possivel excluir o filho.');
+
+  await syncUserFromRemote(current.id);
+  dispatchAuthChanged();
+}
+
 export function getDataScopeKey() {
   const user = getCurrentUser();
   if (!user) return 'guest';

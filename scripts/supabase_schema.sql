@@ -2,6 +2,7 @@
 -- It creates the tables needed by src/auth.js cloud migration.
 
 create extension if not exists pgcrypto;
+create extension if not exists unaccent;
 
 create table if not exists public.families (
   id uuid primary key default gen_random_uuid(),
@@ -127,7 +128,7 @@ as $$
   select f.*
   from public.families f
   where trim(coalesce(input_name, '')) <> ''
-    and f.name ilike ('%' || trim(input_name) || '%')
+    and unaccent(lower(f.name)) like ('%' || unaccent(lower(trim(input_name))) || '%')
   order by f.created_at desc
   limit 30
 $$;
@@ -422,5 +423,12 @@ using (
   family_id = public.current_user_family_id()
 )
 with check (
+  family_id = public.current_user_family_id()
+);
+
+drop policy if exists "dependents_delete_family" on public.dependents;
+create policy "dependents_delete_family"
+on public.dependents for delete
+using (
   family_id = public.current_user_family_id()
 );
