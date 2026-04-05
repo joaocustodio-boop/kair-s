@@ -218,11 +218,11 @@ export function init(container, stateArg) {
     reader.readAsDataURL(file);
   });
 
-  container.querySelector('#ajustes-save-profile')?.addEventListener('click', () => {
+  container.querySelector('#ajustes-save-profile')?.addEventListener('click', async () => {
     const name = String(container.querySelector('#ajustes-name')?.value || '').trim();
     const photoUrl = String(container.querySelector('#ajustes-photo-url')?.value || '').trim();
     try {
-      updateUserProfile({ name, photoUrl });
+      await updateUserProfile({ name, photoUrl });
       alert('Perfil atualizado com sucesso!');
       rerender();
     } catch (err) {
@@ -230,10 +230,10 @@ export function init(container, stateArg) {
     }
   });
 
-  container.querySelector('#ajustes-save-password')?.addEventListener('click', () => {
+  container.querySelector('#ajustes-save-password')?.addEventListener('click', async () => {
     const newPassword = String(container.querySelector('#ajustes-new-password')?.value || '').trim();
     try {
-      updateUserPassword(newPassword);
+      await updateUserPassword(newPassword);
       alert('Senha alterada com sucesso!');
       rerender();
     } catch (err) {
@@ -241,10 +241,10 @@ export function init(container, stateArg) {
     }
   });
 
-  container.querySelector('#ajustes-create-family')?.addEventListener('click', () => {
+  container.querySelector('#ajustes-create-family')?.addEventListener('click', async () => {
     const name = String(container.querySelector('#ajustes-family-name')?.value || '').trim();
     try {
-      createFamily(name);
+      await createFamily(name);
       alert('Família criada com sucesso!');
       rerender();
     } catch (err) {
@@ -252,10 +252,10 @@ export function init(container, stateArg) {
     }
   });
 
-  container.querySelector('#ajustes-join-family')?.addEventListener('click', () => {
+  container.querySelector('#ajustes-join-family')?.addEventListener('click', async () => {
     const code = String(container.querySelector('#ajustes-family-code')?.value || '').trim();
     try {
-      joinFamilyByCode(code);
+      await joinFamilyByCode(code);
       alert('Você entrou na família.');
       rerender();
     } catch (err) {
@@ -263,12 +263,12 @@ export function init(container, stateArg) {
     }
   });
 
-  container.querySelector('#ajustes-add-child')?.addEventListener('click', () => {
+  container.querySelector('#ajustes-add-child')?.addEventListener('click', async () => {
     const name = String(container.querySelector('#ajustes-child-name')?.value || '').trim();
     const birthDate = String(container.querySelector('#ajustes-child-birth')?.value || '').trim();
     const photoUrl = String(container.querySelector('#ajustes-child-photo-url')?.value || '').trim();
     try {
-      addDependentChild({ name, birthDate, photoUrl });
+      await addDependentChild({ name, birthDate, photoUrl });
       alert('Filho adicionado com sucesso!');
       rerender();
     } catch (err) {
@@ -318,14 +318,14 @@ export function init(container, stateArg) {
   });
 
   container.querySelectorAll('[data-action="save-child"]').forEach((btn) => {
-    btn.addEventListener('click', () => {
+    btn.addEventListener('click', async () => {
       const id = String(btn.dataset.id || '');
       const name = String(container.querySelector(`#ajustes-edit-child-name-${id}`)?.value || '').trim();
       const birthDate = String(container.querySelector(`#ajustes-edit-child-birth-${id}`)?.value || '').trim();
       const photoUrl = String(container.querySelector(`#ajustes-edit-child-photo-url-${id}`)?.value || '').trim();
 
       try {
-        updateDependentChild({ dependentId: id, name, birthDate, photoUrl });
+        await updateDependentChild({ dependentId: id, name, birthDate, photoUrl });
         alert('Filho atualizado com sucesso!');
         state.editingChildId = null;
         rerender();

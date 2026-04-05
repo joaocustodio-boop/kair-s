@@ -222,8 +222,8 @@ const initUserProfile = () => {
     if (!isOpen) { updateProfilePanel(); panel.style.display = 'block'; refreshIcons(); }
   });
 
-  logoutBtn?.addEventListener('click', () => {
-    logoutUser();
+  logoutBtn?.addEventListener('click', async () => {
+    await logoutUser();
     panel.style.display = 'none';
     window.location.hash = 'login';
     refreshIcons();

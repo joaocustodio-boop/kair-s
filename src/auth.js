@@ -1,3 +1,5 @@
+import { supabase, isSupabaseEnabled } from './supabaseClient.js';
+
 const AUTH_DB_KEY = 'fd-auth-db';
 const AUTH_SESSION_KEY = 'fd-auth-session';
 
@@ -58,6 +60,129 @@ function dispatchAuthChanged() {
   window.dispatchEvent(new CustomEvent('auth:changed'));
 }
 
+function mergeFamilyMembers(db, familyId, members, dependents) {
+  const otherUsers = db.users.filter((u) => u.familyId !== familyId);
+  db.users = [...otherUsers, ...members];
+
+  const restFamilies = db.families.filter((f) => f.id !== familyId);
+  const existing = db.families.find((f) => f.id === familyId);
+  db.families = [
+    ...restFamilies,
+    {
+      id: familyId,
+      name: existing?.name || 'Familia',
+      code: existing?.code || '',
+      ownerId: existing?.ownerId || null,
+      createdAt: existing?.createdAt || new Date().toISOString(),
+      dependents,
+    },
+  ];
+}
+
+async function fetchRemoteProfile(userId) {
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('id, name, email, photo_url, family_id, created_at')
+    .eq('id', userId)
+    .maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+async function fetchRemoteFamily(familyId) {
+  const { data, error } = await supabase
+    .from('families')
+    .select('id, name, code, owner_id, created_at')
+    .eq('id', familyId)
+    .maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+async function fetchRemoteFamilyMembers(familyId) {
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('id, name, email, photo_url, family_id, created_at')
+    .eq('family_id', familyId);
+  if (error) throw error;
+  return Array.isArray(data) ? data : [];
+}
+
+async function fetchRemoteDependents(familyId) {
+  const { data, error } = await supabase
+    .from('dependents')
+    .select('id, family_id, name, birth_date, photo_url, role, created_at')
+    .eq('family_id', familyId);
+  if (error) throw error;
+  return Array.isArray(data) ? data : [];
+}
+
+function toLocalUser(profile) {
+  return {
+    id: profile.id,
+    name: profile.name,
+    email: normalizeEmail(profile.email),
+    familyId: profile.family_id || null,
+    photoUrl: profile.photo_url || null,
+    createdAt: profile.created_at || new Date().toISOString(),
+  };
+}
+
+function toLocalFamily(family, dependents) {
+  if (!family) return null;
+  return {
+    id: family.id,
+    name: family.name,
+    code: family.code,
+    ownerId: family.owner_id,
+    createdAt: family.created_at,
+    dependents: dependents.map((d) => ({
+      id: d.id,
+      name: d.name,
+      photoUrl: d.photo_url || null,
+      role: d.role || 'filho',
+      birthDate: d.birth_date || null,
+      createdAt: d.created_at,
+    })),
+  };
+}
+
+async function syncUserFromRemote(userId) {
+  if (!isSupabaseEnabled()) return;
+  const profile = await fetchRemoteProfile(userId);
+  if (!profile) return;
+
+  const db = readDb();
+  const localUser = toLocalUser(profile);
+
+  db.users = [...db.users.filter((u) => u.id !== localUser.id), localUser];
+
+  if (localUser.familyId) {
+    const [family, profiles, dependents] = await Promise.all([
+      fetchRemoteFamily(localUser.familyId),
+      fetchRemoteFamilyMembers(localUser.familyId),
+      fetchRemoteDependents(localUser.familyId),
+    ]);
+
+    const familyMembers = profiles.map(toLocalUser);
+    const localFamily = toLocalFamily(family, dependents);
+
+    mergeFamilyMembers(db, localUser.familyId, familyMembers, localFamily?.dependents || []);
+
+    if (localFamily) {
+      db.families = [...db.families.filter((f) => f.id !== localFamily.id), localFamily];
+    }
+  }
+
+  writeDb(db);
+}
+
+function ensureSupabaseConfigured() {
+  if (!isSupabaseEnabled()) {
+    throw new Error('Supabase nao configurado. Defina VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY.');
+  }
+}
+
 export function isAuthenticated() {
   return Boolean(readSession()?.userId);
 }
@@ -99,102 +224,9 @@ export function getFamilyMembers() {
   return [...familyUsers, ...dependentMembers];
 }
 
-export function addDependentChild({ name, birthDate = '', photoUrl = '' }) {
-  const current = getCurrentUser();
-  if (!current) {
-    throw new Error('Faça login para adicionar dependentes.');
-  }
-  if (!current.familyId) {
-    throw new Error('Crie ou entre em uma família primeiro.');
-  }
+export async function registerUser({ name, email, password }) {
+  ensureSupabaseConfigured();
 
-  const safeName = String(name || '').trim();
-  if (!safeName) {
-    throw new Error('Informe o nome da criança.');
-  }
-
-  const safeBirthDate = String(birthDate || '').trim();
-  const safePhotoUrl = String(photoUrl || '').trim();
-
-  const db = readDb();
-  const family = db.families.find((f) => f.id === current.familyId);
-  if (!family) {
-    throw new Error('Família não encontrada.');
-  }
-
-  if (!Array.isArray(family.dependents)) {
-    family.dependents = [];
-  }
-
-  const alreadyExists = family.dependents.some((d) => String(d.name || '').trim().toLowerCase() === safeName.toLowerCase());
-  if (alreadyExists) {
-    throw new Error('Já existe um dependente com esse nome na família.');
-  }
-
-  const dependent = {
-    id: generateId('dep'),
-    name: safeName,
-    role: 'filho',
-    birthDate: safeBirthDate || null,
-    photoUrl: safePhotoUrl || null,
-    createdBy: current.id,
-    createdAt: new Date().toISOString(),
-  };
-
-  family.dependents.push(dependent);
-  writeDb(db);
-  dispatchAuthChanged();
-  return dependent;
-}
-
-export function updateDependentChild({ dependentId, name, birthDate = '', photoUrl = '' }) {
-  const current = getCurrentUser();
-  if (!current) {
-    throw new Error('Faça login para editar dependentes.');
-  }
-  if (!current.familyId) {
-    throw new Error('Você precisa estar em uma família.');
-  }
-
-  const safeDependentId = String(dependentId || '').trim();
-  const safeName = String(name || '').trim();
-  const safeBirthDate = String(birthDate || '').trim();
-  const safePhotoUrl = String(photoUrl || '').trim();
-
-  if (!safeDependentId) throw new Error('Dependente inválido.');
-  if (!safeName) throw new Error('Informe o nome da criança.');
-
-  const db = readDb();
-  const family = db.families.find((f) => f.id === current.familyId);
-  if (!family) throw new Error('Família não encontrada.');
-
-  if (!Array.isArray(family.dependents)) {
-    family.dependents = [];
-  }
-
-  const dependent = family.dependents.find((d) => d.id === safeDependentId);
-  if (!dependent) {
-    throw new Error('Dependente não encontrado.');
-  }
-
-  const alreadyExists = family.dependents.some(
-    (d) => d.id !== safeDependentId && String(d.name || '').trim().toLowerCase() === safeName.toLowerCase()
-  );
-  if (alreadyExists) {
-    throw new Error('Já existe outro dependente com esse nome na família.');
-  }
-
-  dependent.name = safeName;
-  dependent.birthDate = safeBirthDate || null;
-  dependent.photoUrl = safePhotoUrl || null;
-  dependent.updatedAt = new Date().toISOString();
-
-  writeDb(db);
-  dispatchAuthChanged();
-  return dependent;
-}
-
-export function registerUser({ name, email, password }) {
   const safeName = String(name || '').trim();
   const safeEmail = normalizeEmail(email);
   const safePassword = String(password || '').trim();
@@ -203,139 +235,278 @@ export function registerUser({ name, email, password }) {
     throw new Error('Preencha nome, email e senha.');
   }
 
-  const db = readDb();
-  const exists = db.users.some((u) => normalizeEmail(u.email) === safeEmail);
-  if (exists) {
-    throw new Error('Este email já está cadastrado.');
-  }
-
-  const user = {
-    id: generateId('usr'),
-    name: safeName,
+  const { data, error } = await supabase.auth.signUp({
     email: safeEmail,
     password: safePassword,
-    familyId: null,
-    createdAt: new Date().toISOString(),
-  };
+  });
 
-  db.users.push(user);
-  writeDb(db);
-
-  writeSession({ userId: user.id, loggedAt: new Date().toISOString() });
-  dispatchAuthChanged();
-  return user;
-}
-
-export function loginUser(email, password) {
-  const safeEmail = normalizeEmail(email);
-  const safePassword = String(password || '').trim();
-  const db = readDb();
-  const user = db.users.find((u) => normalizeEmail(u.email) === safeEmail);
-
-  if (!user || user.password !== safePassword) {
-    throw new Error('Email ou senha inválidos.');
+  if (error) {
+    throw new Error(error.message || 'Falha no cadastro.');
   }
 
-  writeSession({ userId: user.id, loggedAt: new Date().toISOString() });
+  const userId = data?.user?.id;
+  if (!userId) {
+    throw new Error('Cadastro criado. Verifique seu email para confirmar a conta e depois faca login.');
+  }
+
+  const { error: profileError } = await supabase.from('profiles').upsert({
+    id: userId,
+    name: safeName,
+    email: safeEmail,
+    family_id: null,
+  });
+
+  if (profileError) {
+    throw new Error(profileError.message || 'Falha ao criar perfil do usuario.');
+  }
+
+  writeSession({ userId, loggedAt: new Date().toISOString() });
+  await syncUserFromRemote(userId);
   dispatchAuthChanged();
-  return user;
+
+  return getCurrentUser();
 }
 
-export function logoutUser() {
+export async function loginUser(email, password) {
+  ensureSupabaseConfigured();
+
+  const safeEmail = normalizeEmail(email);
+  const safePassword = String(password || '').trim();
+
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email: safeEmail,
+    password: safePassword,
+  });
+
+  if (error || !data?.user?.id) {
+    throw new Error('Email ou senha invalidos.');
+  }
+
+  const userId = data.user.id;
+  writeSession({ userId, loggedAt: new Date().toISOString() });
+
+  await syncUserFromRemote(userId);
+  dispatchAuthChanged();
+  return getCurrentUser();
+}
+
+export async function logoutUser() {
+  if (isSupabaseEnabled()) {
+    await supabase.auth.signOut();
+  }
   writeSession(null);
   dispatchAuthChanged();
 }
 
-export function updateUserPassword(newPassword) {
+export async function updateUserPassword(newPassword) {
+  ensureSupabaseConfigured();
+
   const current = getCurrentUser();
-  if (!current) throw new Error('Faça login para alterar a senha.');
+  if (!current) throw new Error('Faca login para alterar a senha.');
 
   const safePassword = String(newPassword || '').trim();
   if (safePassword.length < 4) {
     throw new Error('A senha deve ter pelo menos 4 caracteres.');
   }
 
-  const db = readDb();
-  const user = db.users.find((u) => u.id === current.id);
-  if (!user) throw new Error('Usuário não encontrado.');
+  const { error } = await supabase.auth.updateUser({ password: safePassword });
+  if (error) throw new Error(error.message || 'Nao foi possivel atualizar a senha.');
 
-  user.password = safePassword;
-  writeDb(db);
   dispatchAuthChanged();
 }
 
-export function updateUserProfile({ name, photoUrl }) {
+export async function updateUserProfile({ name, photoUrl }) {
+  ensureSupabaseConfigured();
+
   const current = getCurrentUser();
-  if (!current) throw new Error('Faça login para alterar o perfil.');
+  if (!current) throw new Error('Faca login para alterar o perfil.');
 
-  const db = readDb();
-  const user = db.users.find((u) => u.id === current.id);
-  if (!user) throw new Error('Usuário não encontrado.');
+  const safeName = name !== undefined ? String(name || '').trim() : current.name;
+  const safePhotoUrl = photoUrl !== undefined ? String(photoUrl || '').trim() : current.photoUrl;
 
-  if (name !== undefined) user.name = String(name || '').trim();
-  if (photoUrl !== undefined) user.photoUrl = photoUrl;
+  const { error } = await supabase
+    .from('profiles')
+    .update({ name: safeName, photo_url: safePhotoUrl || null })
+    .eq('id', current.id);
 
-  writeDb(db);
+  if (error) throw new Error(error.message || 'Nao foi possivel atualizar o perfil.');
+
+  await syncUserFromRemote(current.id);
   dispatchAuthChanged();
 }
 
-export function createFamily(name) {
+export async function createFamily(name) {
+  ensureSupabaseConfigured();
+
   const current = getCurrentUser();
   if (!current) {
-    throw new Error('Faça login para criar uma família.');
+    throw new Error('Faca login para criar uma familia.');
   }
 
   const safeName = String(name || '').trim();
   if (!safeName) {
-    throw new Error('Informe o nome da família.');
+    throw new Error('Informe o nome da familia.');
   }
 
-  const db = readDb();
-  const user = db.users.find((u) => u.id === current.id);
-  if (!user) throw new Error('Usuário não encontrado.');
-
-  if (user.familyId) {
-    const already = db.families.find((f) => f.id === user.familyId);
-    if (already) return already;
+  if (current.familyId) {
+    return getCurrentFamily();
   }
 
-  const family = {
-    id: generateId('fam'),
-    name: safeName,
-    code: generateFamilyCode(),
-    ownerId: user.id,
-    createdAt: new Date().toISOString(),
-  };
+  let familyCode = generateFamilyCode();
+  let insertedFamily = null;
 
-  user.familyId = family.id;
-  db.families.push(family);
-  writeDb(db);
+  for (let i = 0; i < 5; i += 1) {
+    const { data, error } = await supabase
+      .from('families')
+      .insert({
+        name: safeName,
+        code: familyCode,
+        owner_id: current.id,
+      })
+      .select('id, name, code, owner_id, created_at')
+      .single();
+
+    if (!error && data) {
+      insertedFamily = data;
+      break;
+    }
+
+    familyCode = generateFamilyCode();
+  }
+
+  if (!insertedFamily) {
+    throw new Error('Nao foi possivel criar a familia agora. Tente novamente.');
+  }
+
+  const { error: updateError } = await supabase
+    .from('profiles')
+    .update({ family_id: insertedFamily.id })
+    .eq('id', current.id);
+
+  if (updateError) {
+    throw new Error(updateError.message || 'Falha ao vincular usuario na familia.');
+  }
+
+  await syncUserFromRemote(current.id);
   dispatchAuthChanged();
-  return family;
+  return getCurrentFamily();
 }
 
-export function joinFamilyByCode(code) {
+export async function joinFamilyByCode(code) {
+  ensureSupabaseConfigured();
+
   const current = getCurrentUser();
   if (!current) {
-    throw new Error('Faça login para entrar em uma família.');
+    throw new Error('Faca login para entrar em uma familia.');
   }
 
   const safeCode = String(code || '').trim().toUpperCase();
-  if (!safeCode) throw new Error('Informe o código da família.');
+  if (!safeCode) throw new Error('Informe o codigo da familia.');
 
-  const db = readDb();
-  const family = db.families.find((f) => String(f.code || '').toUpperCase() === safeCode);
-  if (!family) {
-    throw new Error('Código de família não encontrado.');
+  const { data: family, error: familyError } = await supabase
+    .from('families')
+    .select('id, name, code, owner_id, created_at')
+    .eq('code', safeCode)
+    .maybeSingle();
+
+  if (familyError || !family) {
+    throw new Error('Codigo de familia nao encontrado.');
   }
 
-  const user = db.users.find((u) => u.id === current.id);
-  if (!user) throw new Error('Usuário não encontrado.');
+  const { error: updateError } = await supabase
+    .from('profiles')
+    .update({ family_id: family.id })
+    .eq('id', current.id);
 
-  user.familyId = family.id;
-  writeDb(db);
+  if (updateError) {
+    throw new Error(updateError.message || 'Nao foi possivel entrar na familia.');
+  }
+
+  await syncUserFromRemote(current.id);
   dispatchAuthChanged();
-  return family;
+  return getCurrentFamily();
+}
+
+export async function addDependentChild({ name, birthDate = '', photoUrl = '' }) {
+  ensureSupabaseConfigured();
+
+  const current = getCurrentUser();
+  if (!current) {
+    throw new Error('Faca login para adicionar dependentes.');
+  }
+  if (!current.familyId) {
+    throw new Error('Crie ou entre em uma familia primeiro.');
+  }
+
+  const safeName = String(name || '').trim();
+  if (!safeName) {
+    throw new Error('Informe o nome da crianca.');
+  }
+
+  const safeBirthDate = String(birthDate || '').trim();
+  const safePhotoUrl = String(photoUrl || '').trim();
+
+  const { data: existing, error: checkError } = await supabase
+    .from('dependents')
+    .select('id')
+    .eq('family_id', current.familyId)
+    .ilike('name', safeName)
+    .limit(1);
+
+  if (checkError) throw new Error(checkError.message || 'Falha ao validar dependente.');
+  if (Array.isArray(existing) && existing.length > 0) {
+    throw new Error('Ja existe um dependente com esse nome na familia.');
+  }
+
+  const { error } = await supabase.from('dependents').insert({
+    family_id: current.familyId,
+    name: safeName,
+    role: 'filho',
+    birth_date: safeBirthDate || null,
+    photo_url: safePhotoUrl || null,
+    created_by: current.id,
+  });
+
+  if (error) throw new Error(error.message || 'Nao foi possivel adicionar o filho.');
+
+  await syncUserFromRemote(current.id);
+  dispatchAuthChanged();
+}
+
+export async function updateDependentChild({ dependentId, name, birthDate = '', photoUrl = '' }) {
+  ensureSupabaseConfigured();
+
+  const current = getCurrentUser();
+  if (!current) {
+    throw new Error('Faca login para editar dependentes.');
+  }
+  if (!current.familyId) {
+    throw new Error('Voce precisa estar em uma familia.');
+  }
+
+  const safeDependentId = String(dependentId || '').trim();
+  const safeName = String(name || '').trim();
+  const safeBirthDate = String(birthDate || '').trim();
+  const safePhotoUrl = String(photoUrl || '').trim();
+
+  if (!safeDependentId) throw new Error('Dependente invalido.');
+  if (!safeName) throw new Error('Informe o nome da crianca.');
+
+  const { error } = await supabase
+    .from('dependents')
+    .update({
+      name: safeName,
+      birth_date: safeBirthDate || null,
+      photo_url: safePhotoUrl || null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', safeDependentId)
+    .eq('family_id', current.familyId);
+
+  if (error) throw new Error(error.message || 'Nao foi possivel atualizar o filho.');
+
+  await syncUserFromRemote(current.id);
+  dispatchAuthChanged();
 }
 
 export function getDataScopeKey() {

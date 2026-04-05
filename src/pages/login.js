@@ -138,11 +138,11 @@ export function init(container) {
       });
     });
 
-    container.querySelector('#auth-login-btn')?.addEventListener('click', () => {
+    container.querySelector('#auth-login-btn')?.addEventListener('click', async () => {
       const email = container.querySelector('#auth-login-email')?.value || '';
       const password = container.querySelector('#auth-login-password')?.value || '';
       try {
-        loginUser(email, password);
+        await loginUser(email, password);
         window.location.hash = '';
       } catch (err) {
         error = err?.message || 'Falha no login.';
@@ -150,12 +150,12 @@ export function init(container) {
       }
     });
 
-    container.querySelector('#auth-register-btn')?.addEventListener('click', () => {
+    container.querySelector('#auth-register-btn')?.addEventListener('click', async () => {
       const name = container.querySelector('#auth-register-name')?.value || '';
       const email = container.querySelector('#auth-register-email')?.value || '';
       const password = container.querySelector('#auth-register-password')?.value || '';
       try {
-        registerUser({ name, email, password });
+        await registerUser({ name, email, password });
         tab = 'login';
         error = '';
         window.location.hash = 'login';
@@ -166,10 +166,10 @@ export function init(container) {
       }
     });
 
-    container.querySelector('#auth-create-family')?.addEventListener('click', () => {
+    container.querySelector('#auth-create-family')?.addEventListener('click', async () => {
       const name = container.querySelector('#auth-family-name')?.value || '';
       try {
-        createFamily(name);
+        await createFamily(name);
         rerender();
       } catch (err) {
         error = err?.message || 'Não foi possível criar a família.';
@@ -177,10 +177,10 @@ export function init(container) {
       }
     });
 
-    container.querySelector('#auth-join-family')?.addEventListener('click', () => {
+    container.querySelector('#auth-join-family')?.addEventListener('click', async () => {
       const code = container.querySelector('#auth-family-code')?.value || '';
       try {
-        joinFamilyByCode(code);
+        await joinFamilyByCode(code);
         rerender();
       } catch (err) {
         error = err?.message || 'Não foi possível entrar na família.';
@@ -192,11 +192,11 @@ export function init(container) {
       window.location.hash = '';
     });
 
-    container.querySelector('#auth-add-child')?.addEventListener('click', () => {
+    container.querySelector('#auth-add-child')?.addEventListener('click', async () => {
       const name = container.querySelector('#auth-child-name')?.value || '';
       const birthDate = container.querySelector('#auth-child-birth')?.value || '';
       try {
-        addDependentChild({ name, birthDate });
+        await addDependentChild({ name, birthDate });
         rerender();
       } catch (err) {
         error = err?.message || 'Não foi possível adicionar o filho.';

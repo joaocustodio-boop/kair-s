@@ -127,20 +127,20 @@ export function init(container, filter = 'all') {
     init(container, f);
   }
 
-  container.querySelector('#create-family-btn')?.addEventListener('click', () => {
+  container.querySelector('#create-family-btn')?.addEventListener('click', async () => {
     const name = String(container.querySelector('#family-name-input')?.value || '').trim();
     try {
-      createFamily(name);
+      await createFamily(name);
       rerender();
     } catch (err) {
       alert(err?.message || 'Não foi possível criar a família.');
     }
   });
 
-  container.querySelector('#join-family-btn')?.addEventListener('click', () => {
+  container.querySelector('#join-family-btn')?.addEventListener('click', async () => {
     const code = String(container.querySelector('#family-code-input')?.value || '').trim();
     try {
-      joinFamilyByCode(code);
+      await joinFamilyByCode(code);
       rerender();
     } catch (err) {
       alert(err?.message || 'Não foi possível entrar na família.');
