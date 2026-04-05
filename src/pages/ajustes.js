@@ -41,6 +41,8 @@ export function render(state = {}) {
     pendingJoinRequests = [],
     pendingRequestsLoaded = false,
     catalogLoaded = false,
+    catalogLoading = false,
+    catalogError = '',
   } = state;
   const user = getCurrentUser();
   const family = getCurrentFamily();
@@ -194,21 +196,23 @@ export function render(state = {}) {
               <i data-lucide="search"></i> Pesquisar
             </button>
           </div>
-          ${familySearchResults.length ? `
-            <div class="form-row" style="display:block;margin-top:6px">
-              ${familySearchResults.map((item) => `
-                <div class="ajustes-member-item" style="margin-bottom:6px">
-                  <div style="flex:1;min-width:0">
-                    <span>${escapeHtml(item.name || 'Familia')}</span>
-                    <small style="display:block;color:var(--text-muted)">Código: ${escapeHtml(item.code || '')}</small>
-                  </div>
-                  <button class="btn btn-secondary" data-action="request-access-catalog" data-code="${escapeHtml(item.code || '')}" type="button" style="padding:6px 10px;font-size:0.75rem">
-                    Solicitar acesso
-                  </button>
+          <div class="form-row" style="display:block;margin-top:6px">
+            <h4 class="form-title" style="margin:0 0 0.5rem 0">Catálogo de famílias</h4>
+            ${catalogLoading ? '<p class="page-subtitle" style="margin:0">Carregando famílias...</p>' : ''}
+            ${!catalogLoading && catalogError ? `<p class="page-subtitle" style="margin:0;color:#ff9b9b">${escapeHtml(catalogError)}</p>` : ''}
+            ${!catalogLoading && !catalogError && !familySearchResults.length ? '<p class="page-subtitle" style="margin:0">Nenhuma família encontrada.</p>' : ''}
+            ${!catalogLoading && !catalogError && familySearchResults.length ? familySearchResults.map((item) => `
+              <div class="ajustes-member-item" style="margin-bottom:6px">
+                <div style="flex:1;min-width:0">
+                  <span>${escapeHtml(item.name || 'Familia')}</span>
+                  <small style="display:block;color:var(--text-muted)">Código: ${escapeHtml(item.code || '')}</small>
                 </div>
-              `).join('')}
-            </div>
-          ` : ''}
+                <button class="btn btn-secondary" data-action="request-access-catalog" data-code="${escapeHtml(item.code || '')}" type="button" style="padding:6px 10px;font-size:0.75rem">
+                  Solicitar acesso
+                </button>
+              </div>
+            `).join('') : ''}
+          </div>
           <div class="form-row form-row-inline">
             <input id="ajustes-family-code" class="form-input" type="text" placeholder="Código da família" />
             <button id="ajustes-find-family" class="btn btn-secondary" type="button">
@@ -238,14 +242,20 @@ export function init(container, stateArg) {
     pendingJoinRequests: [],
     pendingRequestsLoaded: false,
     catalogLoaded: false,
+    catalogLoading: false,
+    catalogError: '',
   };
 
   async function loadFamilyCatalog() {
+    state.catalogLoading = true;
+    state.catalogError = '';
     try {
       state.familySearchResults = await searchFamiliesByName('');
-    } catch {
+    } catch (err) {
       state.familySearchResults = [];
+      state.catalogError = err?.message || 'Nao foi possivel carregar o catalogo de familias.';
     } finally {
+      state.catalogLoading = false;
       state.catalogLoaded = true;
     }
   }
@@ -373,14 +383,19 @@ export function init(container, stateArg) {
   container.querySelector('#ajustes-search-family')?.addEventListener('click', async () => {
     const query = String(container.querySelector('#ajustes-family-search')?.value || '').trim();
     try {
+      state.catalogLoading = true;
+      state.catalogError = '';
       const families = await searchFamiliesByName(query);
       state.familySearchResults = families;
       state.catalogLoaded = true;
+      state.catalogLoading = false;
       if (!families.length) {
         alert('Nenhuma família encontrada com esse nome.');
       }
       rerender();
     } catch (err) {
+      state.catalogLoading = false;
+      state.catalogError = err?.message || 'Nao foi possivel pesquisar familias.';
       alert(err?.message || 'Não foi possível pesquisar famílias.');
     }
   });
