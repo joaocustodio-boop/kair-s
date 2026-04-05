@@ -568,6 +568,21 @@ export async function leaveFamilyAsync() {
     throw new Error('Voce nao esta em uma familia.');
   }
 
+  // Legacy local users may still have ids like "usr-..." and no Supabase auth session.
+  if (!isUuid(current.id)) {
+    const db = readDb();
+    db.users = db.users.map((user) => {
+      if (user.id !== current.id) return user;
+      return {
+        ...user,
+        familyId: null,
+      };
+    });
+    writeDb(db);
+    dispatchAuthChanged();
+    return null;
+  }
+
   const userId = await resolveAuthenticatedUserId(current.id);
 
   const { error: updateError } = await supabase
