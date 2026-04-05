@@ -560,14 +560,16 @@ export function init(container, stateArg) {
     });
   });
 
-  if (!state.catalogLoaded && !family) {
+  const currentFamily = getCurrentFamily();
+
+  if (!state.catalogLoaded && !currentFamily) {
     void (async () => {
       await loadFamilyCatalog();
       rerender();
     })();
   }
 
-  if (!state.pendingRequestsLoaded && family) {
+  if (!state.pendingRequestsLoaded && currentFamily) {
     void (async () => {
       await loadPendingRequests();
       rerender();
