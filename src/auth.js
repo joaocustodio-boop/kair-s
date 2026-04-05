@@ -688,7 +688,8 @@ export async function joinFamilyByCode(code) {
     throw new Error('Faca login para entrar em uma familia.');
   }
 
-  await ensureRemoteProfile(current.id);
+  const userId = await resolveAuthenticatedUserId(current.id);
+  await ensureRemoteProfile(userId);
 
   const safeCode = normalizeFamilyCodeInput(code);
   if (!safeCode) throw new Error('Informe o codigo da familia.');
@@ -702,7 +703,7 @@ export async function joinFamilyByCode(code) {
       throw error;
     }
 
-    await syncUserFromRemote(current.id);
+    await syncUserFromRemote(userId);
     dispatchAuthChanged();
     return getCurrentFamily();
   } catch (error) {
@@ -751,6 +752,10 @@ export async function findFamilyByCode(code) {
 
     return unwrapRpcSingle(data);
   } catch (error) {
+    if (isUuid(current.id)) {
+      throw new Error(error?.message || 'Nao foi possivel buscar a familia.');
+    }
+
     const db = readDb();
     const localFamily = db.families.find((f) => familyCodeMatches(f.code, safeCode));
     if (localFamily) {
@@ -762,9 +767,7 @@ export async function findFamilyByCode(code) {
         created_at: localFamily.createdAt || null,
       };
     }
-    if (isUuid(current.id)) {
-      throw new Error(error?.message || 'Nao foi possivel buscar a familia.');
-    }
+
     return null;
   }
 }
@@ -779,21 +782,24 @@ export async function searchFamiliesByName(nameQuery) {
 
   const safeQuery = String(nameQuery || '').trim();
   const rpcQuery = safeQuery || '%';
+  const includeLocalFamilies = !isUuid(current.id);
 
   const localQuery = normalizeSearchText(safeQuery);
-  const localFamilies = readDb().families
-    .filter((f) => {
-      if (!localQuery) return true;
-      return normalizeSearchText(f.name).includes(localQuery);
-    })
-    .slice(0, 30)
-    .map((f) => ({
-      id: f.id,
-      name: f.name,
-      code: f.code,
-      owner_id: f.ownerId || null,
-      created_at: f.createdAt || null,
-    }));
+  const localFamilies = includeLocalFamilies
+    ? readDb().families
+      .filter((f) => {
+        if (!localQuery) return true;
+        return normalizeSearchText(f.name).includes(localQuery);
+      })
+      .slice(0, 30)
+      .map((f) => ({
+        id: f.id,
+        name: f.name,
+        code: f.code,
+        owner_id: f.ownerId || null,
+        created_at: f.createdAt || null,
+      }))
+    : [];
 
   function mergeFamilies(remoteFamilies) {
     const merged = [...(Array.isArray(remoteFamilies) ? remoteFamilies : []), ...localFamilies];
@@ -837,7 +843,8 @@ export async function requestFamilyJoinByCode(code) {
   const safeCode = normalizeFamilyCodeInput(code);
   if (!safeCode) throw new Error('Informe o codigo da familia.');
 
-  await ensureRemoteProfile(current.id);
+  const userId = await resolveAuthenticatedUserId(current.id);
+  await ensureRemoteProfile(userId);
 
   const { data, error } = await supabase.rpc('request_family_join_by_code', {
     input_code: safeCode,

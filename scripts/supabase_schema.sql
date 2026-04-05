@@ -362,11 +362,11 @@ using (
 
 -- Families policies
 drop policy if exists "families_select_own_or_member" on public.families;
-create policy "families_select_own_or_member"
+drop policy if exists "families_select_authenticated" on public.families;
+create policy "families_select_authenticated"
 on public.families for select
 using (
-  owner_id = auth.uid()
-  or id = public.current_user_family_id()
+  auth.uid() is not null
 );
 
 drop policy if exists "families_insert_owner" on public.families;
