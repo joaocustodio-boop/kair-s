@@ -780,6 +780,31 @@ export async function searchFamiliesByName(nameQuery) {
   const safeQuery = String(nameQuery || '').trim();
   const rpcQuery = safeQuery || '%';
 
+  const localQuery = normalizeSearchText(safeQuery);
+  const localFamilies = readDb().families
+    .filter((f) => {
+      if (!localQuery) return true;
+      return normalizeSearchText(f.name).includes(localQuery);
+    })
+    .slice(0, 30)
+    .map((f) => ({
+      id: f.id,
+      name: f.name,
+      code: f.code,
+      owner_id: f.ownerId || null,
+      created_at: f.createdAt || null,
+    }));
+
+  function mergeFamilies(remoteFamilies) {
+    const merged = [...(Array.isArray(remoteFamilies) ? remoteFamilies : []), ...localFamilies];
+    const uniqueById = new Map();
+    merged.forEach((family) => {
+      const key = String(family?.id || '').trim() || `${String(family?.code || '').trim().toUpperCase()}:${String(family?.name || '').trim()}`;
+      if (!uniqueById.has(key)) uniqueById.set(key, family);
+    });
+    return Array.from(uniqueById.values()).slice(0, 30);
+  }
+
   try {
     const { data, error } = await supabase.rpc('search_families_by_name', {
       input_name: rpcQuery,
@@ -789,28 +814,15 @@ export async function searchFamiliesByName(nameQuery) {
       throw error;
     }
 
-    if (Array.isArray(data)) return data;
+    if (Array.isArray(data)) return mergeFamilies(data);
     const single = unwrapRpcSingle(data);
-    return single ? [single] : [];
+    return mergeFamilies(single ? [single] : []);
   } catch (error) {
-    const db = readDb();
-    const query = normalizeSearchText(safeQuery);
-    const locals = db.families
-      .filter((f) => normalizeSearchText(f.name).includes(query))
-      .slice(0, 30)
-      .map((f) => ({
-        id: f.id,
-        name: f.name,
-        code: f.code,
-        owner_id: f.ownerId || null,
-        created_at: f.createdAt || null,
-      }));
-
-    if (isUuid(current.id)) {
+    if (isUuid(current.id) && localFamilies.length === 0) {
       throw new Error(error?.message || 'Nao foi possivel buscar familias.');
     }
 
-    return locals;
+    return localFamilies;
   }
 }
 
