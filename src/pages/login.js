@@ -1,7 +1,7 @@
 import {
   completePasswordRecovery,
   findFamilyByCode,
-  joinFamilyByCode,
+  requestFamilyJoinByCode,
   loginUser,
   preparePasswordRecoverySession,
   requestPasswordReset,
@@ -80,7 +80,7 @@ export function render(mode = 'login', error = '') {
               <div class="form-row form-row-inline" style="margin-top:8px">
                 <input id="auth-family-code" class="form-input" type="text" placeholder="Código da família" />
                 <button id="auth-join-family" class="btn btn-secondary" type="button">
-                  <i data-lucide="user-plus"></i> Entrar com Código
+                  <i data-lucide="send"></i> Solicitar acesso
                 </button>
               </div>
             `}
@@ -285,11 +285,11 @@ export function init(container) {
           rerender();
           return;
         }
-        await joinFamilyByCode(code);
-        error = '';
+        await requestFamilyJoinByCode(code);
+        error = 'Solicitacao enviada para o criador da familia.';
         rerender();
       } catch (err) {
-        error = err?.message || 'Não foi possível entrar na família.';
+        error = err?.message || 'Não foi possível solicitar acesso à família.';
         rerender();
       }
     });

@@ -6,7 +6,9 @@ import {
   updateUserPassword,
   createFamily,
   findFamilyByCode,
-  joinFamilyByCode,
+  requestFamilyJoinByCode,
+  listPendingFamilyJoinRequests,
+  reviewFamilyJoinRequest,
   searchFamiliesByName,
   leaveFamilyAsync,
   addDependentChild,
@@ -36,10 +38,14 @@ export function render(state = {}) {
     editingChildId = null,
     familyLookup = null,
     familySearchResults = [],
+    pendingJoinRequests = [],
+    pendingRequestsLoaded = false,
+    catalogLoaded = false,
   } = state;
   const user = getCurrentUser();
   const family = getCurrentFamily();
   const members = getFamilyMembers();
+  const isFamilyOwner = Boolean(family && user && family.ownerId === user.id);
 
   const displayName = user?.name || 'Usuário';
   const photoUrl = user?.photoUrl || avatarFromName(displayName);
@@ -155,6 +161,26 @@ export function render(state = {}) {
               <i data-lucide="log-out"></i> Sair da família
             </button>
           </div>
+
+          ${isFamilyOwner ? `
+            <div class="form-row" style="margin-top:1rem;padding-top:1rem;border-top:1px solid var(--border-color)">
+              <h4 class="form-title" style="margin:0 0 0.5rem 0">Solicitações de acesso</h4>
+              ${pendingJoinRequests.length ? pendingJoinRequests.map((req) => `
+                <div class="ajustes-member-item" style="margin-bottom:8px">
+                  <div style="flex:1;min-width:0">
+                    <span>${escapeHtml(req.requester_name || 'Usuario')}</span>
+                    <small style="display:block;color:var(--text-muted)">${escapeHtml(req.requester_email || '')}</small>
+                  </div>
+                  <button class="btn btn-primary" data-action="approve-join-request" data-id="${escapeHtml(req.id)}" type="button" style="padding:6px 10px;font-size:0.75rem">
+                    Aprovar
+                  </button>
+                  <button class="btn btn-secondary" data-action="reject-join-request" data-id="${escapeHtml(req.id)}" type="button" style="padding:6px 10px;font-size:0.75rem">
+                    Recusar
+                  </button>
+                </div>
+              `).join('') : '<p class="page-subtitle" style="margin:0">Sem solicitações pendentes.</p>'}
+            </div>
+          ` : ''}
         ` : `
           <div class="form-row form-row-inline">
             <input id="ajustes-family-name" class="form-input" type="text" placeholder="Nome da família" />
@@ -176,6 +202,9 @@ export function render(state = {}) {
                     <span>${escapeHtml(item.name || 'Familia')}</span>
                     <small style="display:block;color:var(--text-muted)">Código: ${escapeHtml(item.code || '')}</small>
                   </div>
+                  <button class="btn btn-secondary" data-action="request-access-catalog" data-code="${escapeHtml(item.code || '')}" type="button" style="padding:6px 10px;font-size:0.75rem">
+                    Solicitar acesso
+                  </button>
                 </div>
               `).join('')}
             </div>
@@ -186,7 +215,7 @@ export function render(state = {}) {
               <i data-lucide="search"></i> Buscar
             </button>
             <button id="ajustes-join-family" class="btn btn-secondary" type="button">
-              <i data-lucide="user-plus"></i> Entrar com código
+              <i data-lucide="send"></i> Solicitar acesso
             </button>
           </div>
           ${familyLookup ? `
@@ -202,7 +231,41 @@ export function render(state = {}) {
 }
 
 export function init(container, stateArg) {
-  const state = stateArg || { editingChildId: null, familyLookup: null, familySearchResults: [] };
+  const state = stateArg || {
+    editingChildId: null,
+    familyLookup: null,
+    familySearchResults: [],
+    pendingJoinRequests: [],
+    pendingRequestsLoaded: false,
+    catalogLoaded: false,
+  };
+
+  async function loadFamilyCatalog() {
+    try {
+      state.familySearchResults = await searchFamiliesByName('');
+    } catch {
+      state.familySearchResults = [];
+    } finally {
+      state.catalogLoaded = true;
+    }
+  }
+
+  async function loadPendingRequests() {
+    const currentUser = getCurrentUser();
+    const currentFamily = getCurrentFamily();
+    if (!currentUser || !currentFamily || currentFamily.ownerId !== currentUser.id) {
+      state.pendingJoinRequests = [];
+      state.pendingRequestsLoaded = true;
+      return;
+    }
+    try {
+      state.pendingJoinRequests = await listPendingFamilyJoinRequests();
+    } catch {
+      state.pendingJoinRequests = [];
+    } finally {
+      state.pendingRequestsLoaded = true;
+    }
+  }
 
   function rerender() {
     container.innerHTML = render(state);
@@ -299,11 +362,11 @@ export function init(container, stateArg) {
   container.querySelector('#ajustes-join-family')?.addEventListener('click', async () => {
     const code = String(container.querySelector('#ajustes-family-code')?.value || '').trim();
     try {
-      await joinFamilyByCode(code);
-      alert('Você entrou na família.');
+      await requestFamilyJoinByCode(code);
+      alert('Solicitação enviada para o criador da família.');
       rerender();
     } catch (err) {
-      alert(err?.message || 'Não foi possível entrar na família.');
+      alert(err?.message || 'Não foi possível solicitar acesso à família.');
     }
   });
 
@@ -312,6 +375,7 @@ export function init(container, stateArg) {
     try {
       const families = await searchFamiliesByName(query);
       state.familySearchResults = families;
+      state.catalogLoaded = true;
       if (!families.length) {
         alert('Nenhuma família encontrada com esse nome.');
       }
@@ -440,5 +504,59 @@ export function init(container, stateArg) {
       }
     });
   });
+
+  container.querySelectorAll('[data-action="request-access-catalog"]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const code = String(btn.dataset.code || '').trim();
+      try {
+        await requestFamilyJoinByCode(code);
+        alert('Solicitação enviada para o criador da família.');
+      } catch (err) {
+        alert(err?.message || 'Não foi possível solicitar acesso à família.');
+      }
+    });
+  });
+
+  container.querySelectorAll('[data-action="approve-join-request"]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const requestId = String(btn.dataset.id || '');
+      try {
+        await reviewFamilyJoinRequest(requestId, 'approved');
+        alert('Solicitação aprovada.');
+        await loadPendingRequests();
+        rerender();
+      } catch (err) {
+        alert(err?.message || 'Não foi possível aprovar a solicitação.');
+      }
+    });
+  });
+
+  container.querySelectorAll('[data-action="reject-join-request"]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const requestId = String(btn.dataset.id || '');
+      try {
+        await reviewFamilyJoinRequest(requestId, 'rejected');
+        alert('Solicitação recusada.');
+        await loadPendingRequests();
+        rerender();
+      } catch (err) {
+        alert(err?.message || 'Não foi possível recusar a solicitação.');
+      }
+    });
+  });
+
+  if (!state.catalogLoaded && !family) {
+    void (async () => {
+      await loadFamilyCatalog();
+      rerender();
+    })();
+  }
+
+  if (!state.pendingRequestsLoaded && family) {
+    void (async () => {
+      await loadPendingRequests();
+      rerender();
+    })();
+  }
 
 }

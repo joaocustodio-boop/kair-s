@@ -1,6 +1,6 @@
 import { store } from '../store.js';
 import { refreshIcons } from '../icons.js';
-import { getCurrentUser, getCurrentFamily, getFamilyMembers, createFamily, findFamilyByCode, joinFamilyByCode } from '../auth.js';
+import { getCurrentUser, getCurrentFamily, getFamilyMembers, createFamily, findFamilyByCode, requestFamilyJoinByCode } from '../auth.js';
 
 function escapeHtml(str) {
   return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -67,7 +67,7 @@ export function render(filter = 'all') {
           <div class="form-row form-row-inline">
             <input type="text" id="family-code-input" class="form-input" placeholder="Código para entrar" />
             <button class="btn btn-secondary" id="join-family-btn" type="button">
-              <i data-lucide="user-plus"></i> Entrar na família
+              <i data-lucide="send"></i> Solicitar acesso
             </button>
           </div>
         `}
@@ -145,10 +145,11 @@ export function init(container, filter = 'all') {
         alert('Código de família não encontrado.');
         return;
       }
-      await joinFamilyByCode(code);
+      await requestFamilyJoinByCode(code);
+      alert('Solicitação enviada para o criador da família.');
       rerender();
     } catch (err) {
-      alert(err?.message || 'Não foi possível entrar na família.');
+      alert(err?.message || 'Não foi possível solicitar acesso à família.');
     }
   });
 

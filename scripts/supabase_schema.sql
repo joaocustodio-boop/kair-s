@@ -127,8 +127,8 @@ stable
 as $$
   select f.*
   from public.families f
-  where trim(coalesce(input_name, '')) <> ''
-    and unaccent(lower(f.name)) like ('%' || unaccent(lower(trim(input_name))) || '%')
+  where trim(coalesce(input_name, '')) = ''
+     or unaccent(lower(f.name)) like ('%' || unaccent(lower(trim(input_name))) || '%')
   order by f.created_at desc
   limit 30
 $$;

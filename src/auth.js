@@ -778,7 +778,6 @@ export async function searchFamiliesByName(nameQuery) {
   }
 
   const safeQuery = String(nameQuery || '').trim();
-  if (!safeQuery) return [];
 
   try {
     const { data, error } = await supabase.rpc('search_families_by_name', {
