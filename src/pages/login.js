@@ -1,5 +1,7 @@
 import {
+  completePasswordRecovery,
   loginUser,
+  requestPasswordReset,
   registerUser,
   createFamily,
   joinFamilyByCode,
@@ -10,6 +12,13 @@ import {
   getFamilyMembers,
 } from '../auth.js';
 import { refreshIcons } from '../icons.js';
+
+function getAuthMode() {
+  if (new URLSearchParams(window.location.search).get('mode') === 'recovery') {
+    return 'reset';
+  }
+  return 'login';
+}
 
 function escapeHtml(value) {
   return String(value || '')
@@ -92,7 +101,33 @@ export function render(mode = 'login', error = '') {
           <button class="filter-tab ${mode === 'register' ? 'active' : ''}" data-auth-tab="register">Cadastro</button>
         </div>
 
-        ${mode === 'login' ? `
+        ${mode === 'reset' ? `
+          <div class="form-row">
+            <p class="page-subtitle" style="margin:0">Defina sua nova senha para concluir a recuperação.</p>
+          </div>
+          <div class="form-row">
+            <input id="auth-reset-password" class="form-input" type="password" placeholder="Nova senha" />
+          </div>
+          <div class="form-row">
+            <button id="auth-reset-btn" class="btn btn-primary" type="button">
+              <i data-lucide="key-round"></i> Salvar nova senha
+            </button>
+          </div>
+        ` : mode === 'recover' ? `
+          <div class="form-row">
+            <input id="auth-recover-email" class="form-input" type="email" placeholder="Seu email" />
+          </div>
+          <div class="form-row">
+            <button id="auth-recover-btn" class="btn btn-primary" type="button">
+              <i data-lucide="mail"></i> Enviar link de recuperação
+            </button>
+          </div>
+          <div class="form-row">
+            <button class="btn btn-secondary" type="button" data-auth-tab="login">
+              Voltar para login
+            </button>
+          </div>
+        ` : mode === 'login' ? `
           <div class="form-row">
             <input id="auth-login-email" class="form-input" type="email" placeholder="Seu email" />
           </div>
@@ -102,6 +137,11 @@ export function render(mode = 'login', error = '') {
           <div class="form-row">
             <button id="auth-login-btn" class="btn btn-primary" type="button">
               <i data-lucide="log-in"></i> Entrar
+            </button>
+          </div>
+          <div class="form-row" style="margin-top:8px">
+            <button class="btn btn-secondary" type="button" data-auth-tab="recover">
+              Recuperar senha
             </button>
           </div>
         ` : `
@@ -126,7 +166,7 @@ export function render(mode = 'login', error = '') {
 }
 
 export function init(container) {
-  let tab = 'login';
+  let tab = getAuthMode();
   let error = '';
 
   function rerender() {
@@ -138,6 +178,9 @@ export function init(container) {
   function bindEvents() {
     container.querySelectorAll('[data-auth-tab]').forEach((btn) => {
       btn.addEventListener('click', () => {
+        if (getAuthMode() === 'reset') {
+          return;
+        }
         tab = btn.getAttribute('data-auth-tab') || 'login';
         error = '';
         rerender();
@@ -168,6 +211,32 @@ export function init(container) {
         rerender();
       } catch (err) {
         error = err?.message || 'Falha no cadastro.';
+        rerender();
+      }
+    });
+
+    container.querySelector('#auth-recover-btn')?.addEventListener('click', async () => {
+      const email = container.querySelector('#auth-recover-email')?.value || '';
+      try {
+        await requestPasswordReset(email);
+        error = 'Enviamos o link de recuperacao para seu email.';
+        tab = 'login';
+        rerender();
+      } catch (err) {
+        error = err?.message || 'Nao foi possivel enviar o link de recuperacao.';
+        rerender();
+      }
+    });
+
+    container.querySelector('#auth-reset-btn')?.addEventListener('click', async () => {
+      const newPassword = container.querySelector('#auth-reset-password')?.value || '';
+      try {
+        await completePasswordRecovery(newPassword);
+        tab = 'login';
+        error = 'Senha redefinida com sucesso. Faca login com a nova senha.';
+        rerender();
+      } catch (err) {
+        error = err?.message || 'Nao foi possivel redefinir a senha.';
         rerender();
       }
     });

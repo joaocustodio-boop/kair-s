@@ -183,6 +183,13 @@ function ensureSupabaseConfigured() {
   }
 }
 
+function buildPasswordRecoveryRedirect() {
+  const url = new URL(window.location.href);
+  url.hash = '';
+  url.searchParams.set('mode', 'recovery');
+  return url.toString();
+}
+
 export function isAuthenticated() {
   return Boolean(readSession()?.userId);
 }
@@ -288,6 +295,44 @@ export async function loginUser(email, password) {
   await syncUserFromRemote(userId);
   dispatchAuthChanged();
   return getCurrentUser();
+}
+
+export async function requestPasswordReset(email) {
+  ensureSupabaseConfigured();
+
+  const safeEmail = normalizeEmail(email);
+  if (!safeEmail) {
+    throw new Error('Informe seu email para recuperar a senha.');
+  }
+
+  const { error } = await supabase.auth.resetPasswordForEmail(safeEmail, {
+    redirectTo: buildPasswordRecoveryRedirect(),
+  });
+
+  if (error) {
+    throw new Error(error.message || 'Nao foi possivel enviar o email de recuperacao.');
+  }
+}
+
+export async function completePasswordRecovery(newPassword) {
+  ensureSupabaseConfigured();
+
+  const safePassword = String(newPassword || '').trim();
+  if (safePassword.length < 4) {
+    throw new Error('A senha deve ter pelo menos 4 caracteres.');
+  }
+
+  const { error } = await supabase.auth.updateUser({ password: safePassword });
+  if (error) {
+    throw new Error(error.message || 'Nao foi possivel redefinir a senha.');
+  }
+
+  await supabase.auth.signOut();
+  writeSession(null);
+  dispatchAuthChanged();
+
+  const cleanUrl = `${window.location.origin}${window.location.pathname}#login`;
+  window.history.replaceState({}, document.title, cleanUrl);
 }
 
 export async function logoutUser() {
