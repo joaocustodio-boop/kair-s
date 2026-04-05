@@ -40,6 +40,21 @@ alter table public.families enable row level security;
 alter table public.profiles enable row level security;
 alter table public.dependents enable row level security;
 
+create or replace function public.current_user_family_id()
+returns uuid
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select family_id
+  from public.profiles
+  where id = auth.uid()
+  limit 1
+$$;
+
+grant execute on function public.current_user_family_id() to authenticated;
+
 create or replace function public.join_family_by_code(input_code text)
 returns public.families
 language plpgsql
@@ -88,7 +103,7 @@ create policy "families_select_own_or_member"
 on public.families for select
 using (
   owner_id = auth.uid()
-  or id in (select family_id from public.profiles where id = auth.uid())
+  or id = public.current_user_family_id()
 );
 
 drop policy if exists "families_insert_owner" on public.families;
@@ -108,7 +123,7 @@ create policy "profiles_select_self_or_family"
 on public.profiles for select
 using (
   id = auth.uid()
-  or family_id in (select family_id from public.profiles where id = auth.uid())
+  or family_id = public.current_user_family_id()
 );
 
 drop policy if exists "profiles_insert_self" on public.profiles;
@@ -127,7 +142,7 @@ drop policy if exists "dependents_select_family" on public.dependents;
 create policy "dependents_select_family"
 on public.dependents for select
 using (
-  family_id in (select family_id from public.profiles where id = auth.uid())
+  family_id = public.current_user_family_id()
 );
 
 drop policy if exists "dependents_insert_family" on public.dependents;
@@ -135,15 +150,15 @@ create policy "dependents_insert_family"
 on public.dependents for insert
 with check (
   created_by = auth.uid()
-  and family_id in (select family_id from public.profiles where id = auth.uid())
+  and family_id = public.current_user_family_id()
 );
 
 drop policy if exists "dependents_update_family" on public.dependents;
 create policy "dependents_update_family"
 on public.dependents for update
 using (
-  family_id in (select family_id from public.profiles where id = auth.uid())
+  family_id = public.current_user_family_id()
 )
 with check (
-  family_id in (select family_id from public.profiles where id = auth.uid())
+  family_id = public.current_user_family_id()
 );
