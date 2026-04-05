@@ -11,6 +11,10 @@ function normalizeEmail(email) {
   return String(email || '').trim().toLowerCase();
 }
 
+function isUuid(value) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value || '').trim());
+}
+
 function generateFamilyCode() {
   return Math.random().toString(36).slice(2, 8).toUpperCase();
 }
@@ -797,6 +801,22 @@ export async function deleteDependentChild(dependentId) {
 
   const safeDependentId = String(dependentId || '').trim();
   if (!safeDependentId) throw new Error('Dependente invalido.');
+
+  // Legacy local dependents used ids like "dep-...". Remove them from local cache only.
+  if (!isUuid(safeDependentId)) {
+    const db = readDb();
+    db.families = db.families.map((family) => {
+      if (family.id !== current.familyId) return family;
+      const dependents = Array.isArray(family.dependents) ? family.dependents : [];
+      return {
+        ...family,
+        dependents: dependents.filter((d) => String(d.id) !== safeDependentId),
+      };
+    });
+    writeDb(db);
+    dispatchAuthChanged();
+    return;
+  }
 
   const { error } = await supabase
     .from('dependents')
