@@ -1,6 +1,7 @@
 import {
   completePasswordRecovery,
   loginUser,
+  preparePasswordRecoverySession,
   requestPasswordReset,
   registerUser,
   createFamily,
@@ -177,8 +178,21 @@ export function render(mode = 'login', error = '') {
 export function init(container) {
   let tab = getAuthMode();
   let error = '';
+  let isReady = tab !== 'reset';
 
   function rerender() {
+    if (!isReady) {
+      container.innerHTML = `
+        <div class="auth-screen">
+          <div class="auth-card">
+            <h2 class="page-title">Validando link...</h2>
+            <p class="page-subtitle">Aguarde alguns segundos.</p>
+          </div>
+        </div>
+      `;
+      return;
+    }
+
     container.innerHTML = render(tab, error);
     refreshIcons();
     bindEvents();
@@ -304,4 +318,18 @@ export function init(container) {
   }
 
   rerender();
+
+  if (tab === 'reset') {
+    (async () => {
+      try {
+        await preparePasswordRecoverySession();
+      } catch (err) {
+        tab = 'login';
+        error = err?.message || 'Link de recuperacao invalido ou expirado.';
+      } finally {
+        isReady = true;
+        rerender();
+      }
+    })();
+  }
 }

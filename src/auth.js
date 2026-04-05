@@ -317,12 +317,49 @@ export async function requestPasswordReset(email) {
   }
 }
 
+export async function preparePasswordRecoverySession() {
+  ensureSupabaseConfigured();
+
+  const searchParams = new URLSearchParams(window.location.search);
+  const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+
+  if (searchParams.has('code')) {
+    const code = String(searchParams.get('code') || '').trim();
+    const { error } = await supabase.auth.exchangeCodeForSession(code);
+    if (error) {
+      throw new Error(error.message || 'Link de recuperacao invalido ou expirado.');
+    }
+    return;
+  }
+
+  if (hashParams.has('access_token') && hashParams.has('refresh_token')) {
+    const { error } = await supabase.auth.setSession({
+      access_token: String(hashParams.get('access_token') || ''),
+      refresh_token: String(hashParams.get('refresh_token') || ''),
+    });
+    if (error) {
+      throw new Error(error.message || 'Nao foi possivel validar o link de recuperacao.');
+    }
+    return;
+  }
+
+  if (searchParams.get('type') === 'recovery' && searchParams.has('token_hash')) {
+    const { error } = await supabase.auth.verifyOtp({
+      type: 'recovery',
+      token_hash: String(searchParams.get('token_hash') || ''),
+    });
+    if (error) {
+      throw new Error(error.message || 'Link de recuperacao invalido ou expirado.');
+    }
+  }
+}
+
 export async function completePasswordRecovery(newPassword) {
   ensureSupabaseConfigured();
 
   const safePassword = String(newPassword || '').trim();
-  if (safePassword.length < 4) {
-    throw new Error('A senha deve ter pelo menos 4 caracteres.');
+  if (safePassword.length < 6) {
+    throw new Error('A senha deve ter pelo menos 6 caracteres.');
   }
 
   const { error } = await supabase.auth.updateUser({ password: safePassword });
