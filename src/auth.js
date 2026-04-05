@@ -184,8 +184,11 @@ function ensureSupabaseConfigured() {
 }
 
 function buildPasswordRecoveryRedirect() {
-  const url = new URL(window.location.href);
-  url.hash = '';
+  const configuredUrl = String(import.meta.env.VITE_APP_URL || '').trim();
+  const isLocalhost = ['localhost', '127.0.0.1'].includes(window.location.hostname);
+  const baseUrl = configuredUrl || (isLocalhost ? 'https://kair-s-virid.vercel.app' : window.location.origin);
+  const url = new URL(baseUrl);
+  url.search = '';
   url.searchParams.set('mode', 'recovery');
   return url.toString();
 }
