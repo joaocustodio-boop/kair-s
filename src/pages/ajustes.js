@@ -11,6 +11,7 @@ import {
   listPendingFamilyJoinRequests,
   reviewFamilyJoinRequest,
   searchFamiliesByName,
+  refreshCurrentUserFromRemote,
   leaveFamilyAsync,
   addDependentChild,
   updateDependentChild,
@@ -250,6 +251,7 @@ export function init(container, stateArg) {
     catalogLoaded: false,
     catalogLoading: false,
     catalogError: '',
+    familySyncLoaded: false,
   };
 
   async function loadFamilyCatalog() {
@@ -280,6 +282,16 @@ export function init(container, stateArg) {
       state.pendingJoinRequests = [];
     } finally {
       state.pendingRequestsLoaded = true;
+    }
+  }
+
+  async function syncFamilyFromRemote() {
+    try {
+      await refreshCurrentUserFromRemote();
+    } catch {
+      // Keep local data if remote sync fails.
+    } finally {
+      state.familySyncLoaded = true;
     }
   }
 
@@ -591,6 +603,13 @@ export function init(container, stateArg) {
   if (!state.pendingRequestsLoaded && currentFamily) {
     void (async () => {
       await loadPendingRequests();
+      rerender();
+    })();
+  }
+
+  if (!state.familySyncLoaded && currentFamily) {
+    void (async () => {
+      await syncFamilyFromRemote();
       rerender();
     })();
   }

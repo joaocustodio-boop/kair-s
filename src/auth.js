@@ -1103,6 +1103,249 @@ export async function deleteDependentChild(dependentId) {
   dispatchAuthChanged();
 }
 
+async function getAuthenticatedFamilyContext() {
+  ensureSupabaseConfigured();
+
+  const current = getCurrentUser();
+  if (!current) {
+    throw new Error('Faca login para continuar.');
+  }
+
+  const userId = await resolveAuthenticatedUserId(current.id);
+  const profile = await ensureRemoteProfile(userId);
+  const familyId = profile?.family_id || current.familyId || null;
+
+  if (!familyId) {
+    throw new Error('Voce precisa estar em uma familia.');
+  }
+
+  return { userId, familyId };
+}
+
+export async function refreshCurrentUserFromRemote() {
+  if (!isSupabaseEnabled()) {
+    return getCurrentUser();
+  }
+
+  const current = getCurrentUser();
+  if (!current) return null;
+
+  const userId = await resolveAuthenticatedUserId(current.id);
+  await syncUserFromRemote(userId);
+  dispatchAuthChanged();
+  return getCurrentUser();
+}
+
+export async function listFamilyTasks() {
+  const { familyId } = await getAuthenticatedFamilyContext();
+
+  const { data, error } = await supabase
+    .from('family_tasks')
+    .select('id, family_id, text, priority, assigned_to, created_by, completed, created_at, updated_at')
+    .eq('family_id', familyId)
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    throw new Error(error.message || 'Nao foi possivel carregar tarefas da familia.');
+  }
+
+  return (Array.isArray(data) ? data : []).map((row) => ({
+    id: row.id,
+    text: row.text,
+    priority: row.priority || 'medium',
+    assignedTo: row.assigned_to || '',
+    createdBy: row.created_by || null,
+    completed: Boolean(row.completed),
+    createdAt: row.created_at || new Date().toISOString(),
+    updatedAt: row.updated_at || null,
+  }));
+}
+
+export async function createFamilyTask({ text, priority = 'medium', assignedTo = '' }) {
+  const { familyId, userId } = await getAuthenticatedFamilyContext();
+
+  const safeText = String(text || '').trim();
+  if (!safeText) {
+    throw new Error('Informe a descricao da tarefa.');
+  }
+
+  const safePriority = ['low', 'medium', 'high'].includes(String(priority || '').toLowerCase())
+    ? String(priority || '').toLowerCase()
+    : 'medium';
+
+  const safeAssignedTo = String(assignedTo || '').trim() || null;
+
+  const { data, error } = await supabase
+    .from('family_tasks')
+    .insert({
+      family_id: familyId,
+      text: safeText,
+      priority: safePriority,
+      assigned_to: safeAssignedTo,
+      created_by: userId,
+      completed: false,
+    })
+    .select('id, family_id, text, priority, assigned_to, created_by, completed, created_at, updated_at')
+    .single();
+
+  if (error) {
+    throw new Error(error.message || 'Nao foi possivel criar tarefa da familia.');
+  }
+
+  return {
+    id: data.id,
+    text: data.text,
+    priority: data.priority || 'medium',
+    assignedTo: data.assigned_to || '',
+    createdBy: data.created_by || null,
+    completed: Boolean(data.completed),
+    createdAt: data.created_at || new Date().toISOString(),
+    updatedAt: data.updated_at || null,
+  };
+}
+
+export async function updateFamilyTask(taskId, patch = {}) {
+  const { familyId } = await getAuthenticatedFamilyContext();
+
+  const safeId = String(taskId || '').trim();
+  if (!safeId) throw new Error('Tarefa invalida.');
+
+  const updatePayload = { updated_at: new Date().toISOString() };
+  if (patch.text !== undefined) updatePayload.text = String(patch.text || '').trim();
+  if (patch.priority !== undefined) {
+    const safePriority = String(patch.priority || '').toLowerCase();
+    updatePayload.priority = ['low', 'medium', 'high'].includes(safePriority) ? safePriority : 'medium';
+  }
+  if (patch.assignedTo !== undefined) updatePayload.assigned_to = String(patch.assignedTo || '').trim() || null;
+  if (patch.completed !== undefined) updatePayload.completed = Boolean(patch.completed);
+
+  const { error } = await supabase
+    .from('family_tasks')
+    .update(updatePayload)
+    .eq('id', safeId)
+    .eq('family_id', familyId);
+
+  if (error) {
+    throw new Error(error.message || 'Nao foi possivel atualizar tarefa da familia.');
+  }
+}
+
+export async function deleteFamilyTask(taskId) {
+  const { familyId } = await getAuthenticatedFamilyContext();
+
+  const safeId = String(taskId || '').trim();
+  if (!safeId) throw new Error('Tarefa invalida.');
+
+  const { error } = await supabase
+    .from('family_tasks')
+    .delete()
+    .eq('id', safeId)
+    .eq('family_id', familyId);
+
+  if (error) {
+    throw new Error(error.message || 'Nao foi possivel excluir tarefa da familia.');
+  }
+}
+
+export async function listFamilyEvents() {
+  const { familyId } = await getAuthenticatedFamilyContext();
+
+  const { data, error } = await supabase
+    .from('family_events')
+    .select('id, family_id, title, event_date, start_time, end_time, location, event_type, notes, attendee_ids, created_by, created_at, updated_at')
+    .eq('family_id', familyId)
+    .order('event_date', { ascending: true })
+    .order('start_time', { ascending: true });
+
+  if (error) {
+    throw new Error(error.message || 'Nao foi possivel carregar compromissos da familia.');
+  }
+
+  return (Array.isArray(data) ? data : []).map((row) => ({
+    id: row.id,
+    title: row.title,
+    date: row.event_date,
+    startTime: row.start_time,
+    endTime: row.end_time || '',
+    location: row.location || '',
+    type: row.event_type || 'outro',
+    notes: row.notes || '',
+    attendeeIds: Array.isArray(row.attendee_ids) ? row.attendee_ids : [],
+    createdBy: row.created_by || null,
+    createdAt: row.created_at || new Date().toISOString(),
+    updatedAt: row.updated_at || null,
+  }));
+}
+
+export async function createFamilyEvent(eventInput) {
+  const { familyId, userId } = await getAuthenticatedFamilyContext();
+
+  const safeTitle = String(eventInput?.title || '').trim();
+  const safeDate = String(eventInput?.date || '').trim();
+  const safeStart = String(eventInput?.startTime || '').trim();
+
+  if (!safeTitle || !safeDate || !safeStart) {
+    throw new Error('Informe titulo, data e horario do compromisso.');
+  }
+
+  const payload = {
+    family_id: familyId,
+    title: safeTitle,
+    event_date: safeDate,
+    start_time: safeStart,
+    end_time: String(eventInput?.endTime || '').trim() || null,
+    location: String(eventInput?.location || '').trim() || null,
+    event_type: String(eventInput?.type || 'outro').trim() || 'outro',
+    notes: String(eventInput?.notes || '').trim() || null,
+    attendee_ids: Array.isArray(eventInput?.attendeeIds)
+      ? eventInput.attendeeIds.map((id) => String(id || '').trim()).filter(Boolean)
+      : [],
+    created_by: userId,
+  };
+
+  const { data, error } = await supabase
+    .from('family_events')
+    .insert(payload)
+    .select('id, family_id, title, event_date, start_time, end_time, location, event_type, notes, attendee_ids, created_by, created_at, updated_at')
+    .single();
+
+  if (error) {
+    throw new Error(error.message || 'Nao foi possivel criar compromisso da familia.');
+  }
+
+  return {
+    id: data.id,
+    title: data.title,
+    date: data.event_date,
+    startTime: data.start_time,
+    endTime: data.end_time || '',
+    location: data.location || '',
+    type: data.event_type || 'outro',
+    notes: data.notes || '',
+    attendeeIds: Array.isArray(data.attendee_ids) ? data.attendee_ids : [],
+    createdBy: data.created_by || null,
+    createdAt: data.created_at || new Date().toISOString(),
+    updatedAt: data.updated_at || null,
+  };
+}
+
+export async function deleteFamilyEvent(eventId) {
+  const { familyId } = await getAuthenticatedFamilyContext();
+
+  const safeId = String(eventId || '').trim();
+  if (!safeId) throw new Error('Compromisso invalido.');
+
+  const { error } = await supabase
+    .from('family_events')
+    .delete()
+    .eq('id', safeId)
+    .eq('family_id', familyId);
+
+  if (error) {
+    throw new Error(error.message || 'Nao foi possivel excluir compromisso da familia.');
+  }
+}
+
 export function getDataScopeKey() {
   const user = getCurrentUser();
   if (!user) return 'guest';

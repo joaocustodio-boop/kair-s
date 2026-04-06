@@ -5,6 +5,7 @@ import { refreshIcons } from './icons.js';
 import { initRouter } from './router.js';
 import { getCurrentUser, isAuthenticated, logoutUser } from './auth.js';
 import { store } from './store.js';
+import { syncMobileNotifications } from './mobileNotifications.js';
 
 // ── Desabilita zoom em WebView (Android/iOS) ────────────────────────────────
 const disableWebViewZoom = () => {
@@ -37,6 +38,12 @@ document.addEventListener('DOMContentLoaded', () => {
   window.addEventListener('auth:changed', () => {
     initAuthHeader();
     updateProfilePanel();
+  });
+  window.addEventListener('store:changed', (event) => {
+    const key = String(event?.detail?.key || '').trim();
+    if (key === 'agenda' || key === 'lembretes') {
+      void syncMobileNotifications();
+    }
   });
 });
 
@@ -153,6 +160,7 @@ const initNotifications = () => {
       </div>
     `).join('');
     refreshIcons();
+    void syncMobileNotifications();
   };
 
   const closeAll = () => {

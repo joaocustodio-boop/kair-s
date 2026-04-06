@@ -45,11 +45,41 @@ create table if not exists public.family_join_requests (
   reviewed_by uuid references auth.users(id) on delete set null
 );
 
+create table if not exists public.family_tasks (
+  id uuid primary key default gen_random_uuid(),
+  family_id uuid not null references public.families(id) on delete cascade,
+  text text not null,
+  priority text not null default 'medium' check (priority in ('low', 'medium', 'high')),
+  assigned_to text,
+  created_by uuid not null references auth.users(id) on delete cascade,
+  completed boolean not null default false,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz
+);
+
+create table if not exists public.family_events (
+  id uuid primary key default gen_random_uuid(),
+  family_id uuid not null references public.families(id) on delete cascade,
+  title text not null,
+  event_date date not null,
+  start_time text not null,
+  end_time text,
+  location text,
+  event_type text not null default 'outro',
+  notes text,
+  attendee_ids text[] not null default '{}',
+  created_by uuid not null references auth.users(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz
+);
+
 create index if not exists profiles_family_id_idx on public.profiles(family_id);
 create index if not exists dependents_family_id_idx on public.dependents(family_id);
 create index if not exists families_code_idx on public.families(code);
 create index if not exists family_join_requests_family_id_idx on public.family_join_requests(family_id);
 create index if not exists family_join_requests_requester_id_idx on public.family_join_requests(requester_id);
+create index if not exists family_tasks_family_id_idx on public.family_tasks(family_id);
+create index if not exists family_events_family_id_idx on public.family_events(family_id);
 create unique index if not exists family_join_requests_pending_unique_idx
 on public.family_join_requests(family_id, requester_id)
 where status = 'pending';
@@ -58,6 +88,8 @@ alter table public.families enable row level security;
 alter table public.profiles enable row level security;
 alter table public.dependents enable row level security;
 alter table public.family_join_requests enable row level security;
+alter table public.family_tasks enable row level security;
+alter table public.family_events enable row level security;
 
 create or replace function public.current_user_family_id()
 returns uuid
@@ -429,6 +461,72 @@ with check (
 drop policy if exists "dependents_delete_family" on public.dependents;
 create policy "dependents_delete_family"
 on public.dependents for delete
+using (
+  family_id = public.current_user_family_id()
+);
+
+-- Family tasks policies
+drop policy if exists "family_tasks_select_family" on public.family_tasks;
+create policy "family_tasks_select_family"
+on public.family_tasks for select
+using (
+  family_id = public.current_user_family_id()
+);
+
+drop policy if exists "family_tasks_insert_family" on public.family_tasks;
+create policy "family_tasks_insert_family"
+on public.family_tasks for insert
+with check (
+  family_id = public.current_user_family_id()
+  and created_by = auth.uid()
+);
+
+drop policy if exists "family_tasks_update_family" on public.family_tasks;
+create policy "family_tasks_update_family"
+on public.family_tasks for update
+using (
+  family_id = public.current_user_family_id()
+)
+with check (
+  family_id = public.current_user_family_id()
+);
+
+drop policy if exists "family_tasks_delete_family" on public.family_tasks;
+create policy "family_tasks_delete_family"
+on public.family_tasks for delete
+using (
+  family_id = public.current_user_family_id()
+);
+
+-- Family events policies
+drop policy if exists "family_events_select_family" on public.family_events;
+create policy "family_events_select_family"
+on public.family_events for select
+using (
+  family_id = public.current_user_family_id()
+);
+
+drop policy if exists "family_events_insert_family" on public.family_events;
+create policy "family_events_insert_family"
+on public.family_events for insert
+with check (
+  family_id = public.current_user_family_id()
+  and created_by = auth.uid()
+);
+
+drop policy if exists "family_events_update_family" on public.family_events;
+create policy "family_events_update_family"
+on public.family_events for update
+using (
+  family_id = public.current_user_family_id()
+)
+with check (
+  family_id = public.current_user_family_id()
+);
+
+drop policy if exists "family_events_delete_family" on public.family_events;
+create policy "family_events_delete_family"
+on public.family_events for delete
 using (
   family_id = public.current_user_family_id()
 );

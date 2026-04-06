@@ -376,6 +376,9 @@ export const store = {
   },
   set(key, data) {
     localStorage.setItem(scopedKey(key), JSON.stringify(data));
+    window.dispatchEvent(new CustomEvent('store:changed', {
+      detail: { key },
+    }));
   },
   update(key, updater) {
     const current = this.get(key);

@@ -1,6 +1,6 @@
 import { store, today } from '../store.js';
 import { refreshIcons } from '../icons.js';
-import { getFamilyMembers } from '../auth.js';
+import { getCurrentFamily, getFamilyMembers, refreshCurrentUserFromRemote, listFamilyEvents, createFamilyEvent, deleteFamilyEvent } from '../auth.js';
 
 function escapeHtml(str) {
   return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -64,7 +64,7 @@ function renderAttendeesPicker(members, selectedIds = []) {
 }
 
 function renderUpcomingCard(evt, expandedId, memberMap) {
-  const isExpanded = expandedId === evt.id;
+  const isExpanded = String(expandedId || '') === String(evt.id || '');
   const isToday = evt.date === today();
   const summary = `${escapeHtml(evt.title)} · ${formatDateLabel(evt.date)} · ${evt.startTime}${evt.endTime ? ' – ' + evt.endTime : ''}`;
 
@@ -270,7 +270,9 @@ export function render(state = {}) {
   const memberMap = Object.fromEntries(members.map((m) => [m.id, m]));
   const t = today();
   const upcoming = events.filter(e => e.date >= t).sort((a, b) => (a.date + a.startTime).localeCompare(b.date + b.startTime));
-  const eventDetail = detailEventId ? events.find(evt => evt.id === detailEventId) : null;
+  const eventDetail = detailEventId
+    ? events.find((evt) => String(evt.id) === String(detailEventId))
+    : null;
 
   return `
     <div class="page-agenda">
@@ -312,7 +314,27 @@ export function init(container, stateArg) {
     currentMonth: new Date(),
     detailEventId: null,
     selectedAttendees: [],
+    remoteLoaded: false,
+    loadingRemote: false,
   };
+
+  async function refreshRemoteEvents() {
+    if (state.loadingRemote) return;
+    state.loadingRemote = true;
+    try {
+      await refreshCurrentUserFromRemote();
+      const family = getCurrentFamily();
+      if (family) {
+        const events = await listFamilyEvents();
+        store.set('agenda', { events });
+      }
+      state.remoteLoaded = true;
+    } catch {
+      state.remoteLoaded = true;
+    } finally {
+      state.loadingRemote = false;
+    }
+  }
 
   function rerender() {
     container.innerHTML = render(state);
@@ -351,18 +373,38 @@ export function init(container, stateArg) {
 
     if (!title || !date || !startTime) return;
 
-    store.update('agenda', data => {
-      data.events.push({
-        id: store.nextId(data.events),
-        title, date, startTime, endTime, location, type, notes, attendeeIds
-      });
-      return data;
-    });
+    void (async () => {
+      try {
+        const family = getCurrentFamily();
+        if (family) {
+          await createFamilyEvent({ title, date, startTime, endTime, location, type, notes, attendeeIds });
+          const events = await listFamilyEvents();
+          store.set('agenda', { events });
+        } else {
+          store.update('agenda', data => {
+            data.events.push({
+              id: store.nextId(data.events),
+              title,
+              date,
+              startTime,
+              endTime,
+              location,
+              type,
+              notes,
+              attendeeIds,
+            });
+            return data;
+          });
+        }
 
-    state.showModal = false;
-    state.selectedDate = date;
-    state.selectedAttendees = [];
-    rerender();
+        state.showModal = false;
+        state.selectedDate = date;
+        state.selectedAttendees = [];
+        rerender();
+      } catch (err) {
+        alert(err?.message || 'Nao foi possivel salvar o compromisso.');
+      }
+    })();
   }
 
   container.querySelectorAll('[data-action="calendar-prev"]').forEach(btn => {
@@ -393,8 +435,8 @@ export function init(container, stateArg) {
   container.querySelectorAll('[data-action="open-event-detail"]').forEach(btn => {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
-      const id = parseInt(String(btn.dataset.id), 10);
-      state.detailEventId = Number.isNaN(id) ? null : id;
+      const id = String(btn.dataset.id || '').trim();
+      state.detailEventId = id || null;
       rerender();
     });
   });
@@ -415,22 +457,40 @@ export function init(container, stateArg) {
 
   container.querySelectorAll('[data-action="toggle-details"]').forEach(btn => {
     btn.addEventListener('click', () => {
-      const id = parseInt(String(btn.dataset.id), 10);
+      const id = String(btn.dataset.id || '').trim();
       state.expandedId = state.expandedId === id ? null : id;
       rerender();
     });
   });
 
   container.querySelectorAll('[data-action="delete"]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const id = parseInt(String(btn.dataset.id), 10);
-      store.update('agenda', data => {
-        data.events = data.events.filter(e => e.id !== id);
-        return data;
-      });
-      if (state.expandedId === id) state.expandedId = null;
-      if (state.detailEventId === id) state.detailEventId = null;
-      rerender();
+    btn.addEventListener('click', async () => {
+      const id = String(btn.dataset.id || '').trim();
+      try {
+        const family = getCurrentFamily();
+        if (family) {
+          await deleteFamilyEvent(id);
+          const events = await listFamilyEvents();
+          store.set('agenda', { events });
+        } else {
+          store.update('agenda', data => {
+            data.events = data.events.filter(e => String(e.id) !== id);
+            return data;
+          });
+        }
+        if (state.expandedId === id) state.expandedId = null;
+        if (state.detailEventId === id) state.detailEventId = null;
+        rerender();
+      } catch (err) {
+        alert(err?.message || 'Nao foi possivel excluir o compromisso.');
+      }
     });
   });
+
+  if (!state.remoteLoaded && getCurrentFamily()) {
+    void (async () => {
+      await refreshRemoteEvents();
+      rerender();
+    })();
+  }
 }

@@ -1,6 +1,18 @@
 import { store } from '../store.js';
 import { refreshIcons } from '../icons.js';
-import { getCurrentUser, getCurrentFamily, getFamilyMembers, createFamily, findFamilyByCode, requestFamilyJoinByCode } from '../auth.js';
+import {
+  getCurrentUser,
+  getCurrentFamily,
+  getFamilyMembers,
+  createFamily,
+  findFamilyByCode,
+  requestFamilyJoinByCode,
+  refreshCurrentUserFromRemote,
+  listFamilyTasks,
+  createFamilyTask,
+  updateFamilyTask,
+  deleteFamilyTask,
+} from '../auth.js';
 
 function escapeHtml(str) {
   return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -118,13 +130,35 @@ export function render(filter = 'all') {
   `;
 }
 
-export function init(container, filter = 'all') {
+export function init(container, filter = 'all', stateArg = null) {
   const currentUser = getCurrentUser();
+  const state = stateArg || {
+    remoteLoaded: false,
+    loadingRemote: false,
+  };
+
+  async function refreshRemoteTasks() {
+    if (state.loadingRemote) return;
+    state.loadingRemote = true;
+    try {
+      await refreshCurrentUserFromRemote();
+      const family = getCurrentFamily();
+      if (family) {
+        const tasks = await listFamilyTasks();
+        store.set('lembretes', { tasks });
+      }
+      state.remoteLoaded = true;
+    } catch {
+      state.remoteLoaded = true;
+    } finally {
+      state.loadingRemote = false;
+    }
+  }
 
   function rerender(f = filter) {
     container.innerHTML = render(f);
     refreshIcons();
-    init(container, f);
+    init(container, f, state);
   }
 
   container.querySelector('#create-family-btn')?.addEventListener('click', async () => {
@@ -160,18 +194,32 @@ export function init(container, filter = 'all') {
     const text = input.value.trim();
     if (!text) return;
 
-    store.update('lembretes', data => {
-      data.tasks.unshift({
-        id: store.nextId(data.tasks),
-        text, priority,
-        assignedTo,
-        createdBy: currentUser?.id || null,
-        completed: false,
-        createdAt: new Date().toISOString()
-      });
-      return data;
-    });
-    rerender();
+    (async () => {
+      try {
+        const family = getCurrentFamily();
+        if (family) {
+          await createFamilyTask({ text, priority, assignedTo });
+          const tasks = await listFamilyTasks();
+          store.set('lembretes', { tasks });
+        } else {
+          store.update('lembretes', data => {
+            data.tasks.unshift({
+              id: store.nextId(data.tasks),
+              text,
+              priority,
+              assignedTo,
+              createdBy: currentUser?.id || null,
+              completed: false,
+              createdAt: new Date().toISOString(),
+            });
+            return data;
+          });
+        }
+        rerender();
+      } catch (err) {
+        alert(err?.message || 'Nao foi possivel criar a tarefa.');
+      }
+    })();
   });
 
   container.querySelector('#task-input')?.addEventListener('keydown', e => {
@@ -179,25 +227,50 @@ export function init(container, filter = 'all') {
   });
 
   container.querySelectorAll('[data-action="toggle"]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const id = parseInt(btn.dataset.id);
-      store.update('lembretes', data => {
-        const task = data.tasks.find(t => t.id === id);
-        if (task) task.completed = !task.completed;
-        return data;
-      });
-      rerender();
+    btn.addEventListener('click', async () => {
+      const id = String(btn.dataset.id || '').trim();
+      try {
+        const family = getCurrentFamily();
+        if (family) {
+          const task = store.get('lembretes').tasks.find((t) => String(t.id) === id);
+          if (task) {
+            await updateFamilyTask(id, { completed: !task.completed });
+            const tasks = await listFamilyTasks();
+            store.set('lembretes', { tasks });
+          }
+        } else {
+          store.update('lembretes', data => {
+            const task = data.tasks.find(t => String(t.id) === id);
+            if (task) task.completed = !task.completed;
+            return data;
+          });
+        }
+        rerender();
+      } catch (err) {
+        alert(err?.message || 'Nao foi possivel atualizar a tarefa.');
+      }
     });
   });
 
   container.querySelectorAll('[data-action="delete"]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const id = parseInt(btn.dataset.id);
-      store.update('lembretes', data => {
-        data.tasks = data.tasks.filter(t => t.id !== id);
-        return data;
-      });
-      rerender();
+    btn.addEventListener('click', async () => {
+      const id = String(btn.dataset.id || '').trim();
+      try {
+        const family = getCurrentFamily();
+        if (family) {
+          await deleteFamilyTask(id);
+          const tasks = await listFamilyTasks();
+          store.set('lembretes', { tasks });
+        } else {
+          store.update('lembretes', data => {
+            data.tasks = data.tasks.filter(t => String(t.id) !== id);
+            return data;
+          });
+        }
+        rerender();
+      } catch (err) {
+        alert(err?.message || 'Nao foi possivel excluir a tarefa.');
+      }
     });
   });
 
@@ -206,4 +279,11 @@ export function init(container, filter = 'all') {
       rerender(tab.dataset.filter);
     });
   });
+
+  if (!state.remoteLoaded && getCurrentFamily()) {
+    void (async () => {
+      await refreshRemoteTasks();
+      rerender(filter);
+    })();
+  }
 }
